@@ -299,3 +299,79 @@ describe("lint R6 solo-playable", () => {
     expect(has(lint(m), "R6")).toBe(true);
   });
 });
+
+describe("lint R7 choice-softlock", () => {
+  it("도달 가능한 choice의 모든 옵션이 requires_flag 조건부면 warn을 낸다", () => {
+    const m: Module = {
+      schema_version: "0.1",
+      meta: baseMeta,
+      flags: [{ id: "known" }],
+      scenes: [
+        {
+          id: "start",
+          read_aloud: "...",
+          blocks: [
+            {
+              type: "choice",
+              id: "ch",
+              options: [{ id: "go", label: "조건부만", goto: "end", requires_flag: "known" }],
+            },
+          ],
+        },
+        { id: "end", read_aloud: "...", ending: { id: "end" } },
+      ],
+    };
+    const results = lint(m);
+    expect(has(results, "R7")).toBe(true);
+    expect(results.find((r) => r.ruleId === "R7")?.sceneId).toBe("start");
+  });
+
+  it("requires_flag 없는 옵션이 하나라도 있으면 통과한다", () => {
+    const m: Module = {
+      schema_version: "0.1",
+      meta: baseMeta,
+      flags: [{ id: "known" }],
+      scenes: [
+        {
+          id: "start",
+          read_aloud: "...",
+          blocks: [
+            {
+              type: "choice",
+              id: "ch",
+              options: [
+                { id: "go", label: "조건부", goto: "end", requires_flag: "known" },
+                { id: "always", label: "항상 보임", goto: "end" },
+              ],
+            },
+          ],
+        },
+        { id: "end", read_aloud: "...", ending: { id: "end" } },
+      ],
+    };
+    expect(has(lint(m), "R7")).toBe(false);
+  });
+
+  it("도달 불가능한 씬의 choice는 R7 대상에서 제외한다 (R2가 이미 잡는다)", () => {
+    const m: Module = {
+      schema_version: "0.1",
+      meta: baseMeta,
+      flags: [{ id: "known" }],
+      scenes: [
+        { id: "start", read_aloud: "...", ending: { id: "start" } },
+        {
+          id: "orphan",
+          read_aloud: "...",
+          blocks: [
+            {
+              type: "choice",
+              id: "ch",
+              options: [{ id: "go", label: "조건부만", goto: "start", requires_flag: "known" }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(has(lint(m), "R7")).toBe(false);
+  });
+});

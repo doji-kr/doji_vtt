@@ -3,7 +3,7 @@ import type { Block, Module, Scene } from "./schema.js";
 export type LintSeverity = "error" | "warn" | "info";
 
 export interface LintResult {
-  ruleId: "R1" | "R2" | "R3" | "R4" | "R5" | "R6";
+  ruleId: "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7";
   severity: LintSeverity;
   sceneId?: string;
   message: string;
@@ -193,6 +193,27 @@ export function lint(module: Module): LintResult[] {
       for (const next of hardAdj.get(id) ?? []) stack.push(next);
     }
   }
+  // R7 choice-softlock: 도달 가능한 choice 블록에 requires_flag 없는(항상 보이는) 옵션이
+  // 하나도 없으면 경고 — 플래그 조합에 따라 그 시점에 선택지가 0개가 될 수 있다.
+  // (그 도달 시점에 항상 참인 플래그가 있을 수도 있으므로 error가 아니라 warn이다 — 정적으로는
+  // 확신할 수 없는 케이스이고, 런타임은 이 소프트락을 서버 레이어에서 이미 가드하고 있다.)
+  for (const scene of module.scenes) {
+    if (!hardReachable.has(scene.id)) continue;
+    for (const block of scene.blocks ?? []) {
+      if (block.type !== "choice") continue;
+      const hasUnconditionalOption = block.options.some((o) => !o.requires_flag);
+      if (!hasUnconditionalOption) {
+        results.push({
+          ruleId: "R7",
+          severity: "warn",
+          sceneId: scene.id,
+          message: `choice 블록 "${block.id}"의 모든 옵션이 requires_flag 조건부다 — 플래그 조합에 따라 선택지가 하나도 안 보일 수 있다`,
+          hint: `조건 없이 항상 보이는 옵션을 최소 1개 추가하거나, 이 블록에 도달할 때 항상 참인 플래그가 있는지 검토해라.`,
+        });
+      }
+    }
+  }
+
   const softAdj = new Map<string, string[]>();
   for (const scene of module.scenes) {
     for (const soft of scene.edges_soft ?? []) {

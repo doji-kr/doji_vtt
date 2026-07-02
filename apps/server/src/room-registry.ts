@@ -1,0 +1,303 @@
+import { randomUUID } from "node:crypto";
+import type Database from "better-sqlite3";
+import type { WebSocket } from "ws";
+import { parseDiceExpression, rollDice } from "./dice.js";
+import { getTable, saveTableSnapshot, type TableRow } from "./table-store.js";
+import { clientOpSchema } from "./table-protocol.js";
+import type { ClientOp, ErrorEnvelope, Grid, LogEntry, Participant, RoomState, ServerEnvelope, Token } from "./table-protocol.js";
+
+const LOG_CAP = 100;
+const SAVE_INTERVAL_MS = 3000;
+const HEARTBEAT_INTERVAL_MS = 15_000;
+const HEARTBEAT_MISS_LIMIT = 3;
+
+interface Connection {
+  socket: WebSocket;
+  nickname: string;
+  role: "dm" | "player";
+  missedPongs: number;
+}
+
+function send(socket: WebSocket, data: unknown): void {
+  if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(data));
+}
+
+function sendError(socket: WebSocket, code: string, message: string): void {
+  const env: ErrorEnvelope = { type: "error", payload: { code, message } };
+  send(socket, env);
+}
+
+/** role !== 'dm'이면 secret 로그 항목을 걷어낸다 — 채널 분리를 스냅샷 레벨에서도 지킨다. */
+function logForRole(log: LogEntry[], role: "dm" | "player"): LogEntry[] {
+  if (role === "dm") return log;
+  return log.filter((e) => !(e.kind === "roll" && e.secret));
+}
+
+export class LiveRoom {
+  readonly id: string;
+  private db: Database.Database;
+  private grid: Grid;
+  private mapPath: string | null;
+  private tokens: Token[];
+  private log: LogEntry[];
+  private participants: Map<string, Participant> = new Map();
+  private connections: Set<Connection> = new Set();
+  private seq: number;
+  private ownerNickname: string;
+  private name: string;
+  private dirty = false;
+  private saveTimer: ReturnType<typeof setInterval>;
+  private heartbeatTimer: ReturnType<typeof setInterval>;
+
+  constructor(db: Database.Database, row: TableRow) {
+    this.db = db;
+    this.id = row.id;
+    this.name = row.name;
+    this.ownerNickname = row.owner_nickname;
+    this.mapPath = row.map_path;
+    this.grid = JSON.parse(row.grid_json);
+    const persisted = JSON.parse(row.state_json) as { tokens: Token[]; log: LogEntry[] };
+    this.tokens = persisted.tokens;
+    this.log = persisted.log;
+    this.seq = row.last_seq;
+
+    this.saveTimer = setInterval(() => this.flush(), SAVE_INTERVAL_MS);
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_INTERVAL_MS);
+  }
+
+  destroy(): void {
+    clearInterval(this.saveTimer);
+    clearInterval(this.heartbeatTimer);
+    this.flush();
+  }
+
+  private flush(): void {
+    if (!this.dirty) return;
+    saveTableSnapshot(this.db, this.id, this.grid, { tokens: this.tokens, log: this.log }, this.seq);
+    this.dirty = false;
+  }
+
+  private heartbeat(): void {
+    for (const conn of [...this.connections]) {
+      if (conn.missedPongs >= HEARTBEAT_MISS_LIMIT) {
+        conn.socket.terminate();
+        continue;
+      }
+      conn.missedPongs++;
+      try {
+        conn.socket.ping();
+      } catch {
+        // 소켓이 이미 죽었으면 다음 tick의 close 핸들러가 정리한다
+      }
+    }
+  }
+
+  roleOf(nickname: string): "dm" | "player" {
+    return nickname === this.ownerNickname ? "dm" : "player";
+  }
+
+  private snapshot(role: "dm" | "player"): RoomState {
+    return {
+      name: this.name,
+      ownerNickname: this.ownerNickname,
+      map: { path: this.mapPath },
+      grid: this.grid,
+      tokens: this.tokens,
+      participants: [...this.participants.values()],
+      log: logForRole(this.log, role),
+    };
+  }
+
+  private broadcast<T>(type: string, payload: T, actor: string, predicate?: (c: Connection) => boolean): void {
+    this.seq += 1;
+    this.dirty = true;
+    const env: ServerEnvelope<T> = { seq: this.seq, room_id: this.id, actor, type, payload };
+    for (const conn of this.connections) {
+      if (predicate && !predicate(conn)) continue;
+      send(conn.socket, env);
+    }
+  }
+
+  private appendLog(entry: LogEntry): void {
+    this.log.push(entry);
+    if (this.log.length > LOG_CAP) this.log.splice(0, this.log.length - LOG_CAP);
+  }
+
+  join(socket: WebSocket, nickname: string): void {
+    const role = this.roleOf(nickname);
+    const conn: Connection = { socket, nickname, role, missedPongs: 0 };
+    this.connections.add(conn);
+    this.participants.set(nickname, { nickname, role, connected: true });
+
+    socket.on("pong", () => {
+      conn.missedPongs = 0;
+    });
+    socket.on("message", (raw: Buffer) => this.handleMessage(conn, raw));
+    socket.on("close", () => this.leave(conn));
+
+    this.broadcast("table.join", { nickname, role }, nickname);
+  }
+
+  private leave(conn: Connection): void {
+    this.connections.delete(conn);
+    const p = this.participants.get(conn.nickname);
+    if (p) this.participants.set(conn.nickname, { ...p, connected: false });
+    this.broadcast("table.leave", { nickname: conn.nickname }, conn.nickname);
+  }
+
+  private handleMessage(conn: Connection, raw: Buffer): void {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw.toString());
+    } catch {
+      sendError(conn.socket, "invalid_json", "메시지가 올바른 JSON이 아니다.");
+      return;
+    }
+
+    const opResult = clientOpSchemaSafeParse(parsed);
+    if (!opResult.ok) {
+      sendError(conn.socket, "invalid_op", opResult.message);
+      return;
+    }
+    this.applyOp(conn, opResult.op);
+  }
+
+  private applyOp(conn: Connection, op: ClientOp): void {
+    switch (op.type) {
+      case "hello": {
+        send(conn.socket, { type: "state.snapshot", payload: { ...this.snapshot(conn.role), seq: this.seq } });
+        return;
+      }
+      case "map.set": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 지도를 바꿀 수 있다.");
+        this.mapPath = op.payload.path;
+        this.broadcast("map.set", op.payload, conn.nickname);
+        return;
+      }
+      case "grid.set": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 그리드를 바꿀 수 있다.");
+        this.grid = op.payload;
+        this.broadcast("grid.set", op.payload, conn.nickname);
+        return;
+      }
+      case "token.add": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 토큰을 추가할 수 있다.");
+        const token: Token = {
+          id: randomUUID(),
+          ownerNickname: op.payload.ownerNickname,
+          label: op.payload.label,
+          x: op.payload.x,
+          y: op.payload.y,
+          colorSeed: op.payload.ownerNickname ?? op.payload.label,
+          locked: false,
+        };
+        this.tokens.push(token);
+        this.broadcast("token.add", token, conn.nickname);
+        return;
+      }
+      case "token.move": {
+        const token = this.tokens.find((t) => t.id === op.payload.tokenId);
+        if (!token) return void sendError(conn.socket, "not_found", "그런 토큰이 없다.");
+        if (conn.role !== "dm") {
+          if (token.ownerNickname !== conn.nickname) {
+            return void sendError(conn.socket, "forbidden", "남의 토큰은 움직일 수 없다.");
+          }
+          if (token.locked) return void sendError(conn.socket, "forbidden", "DM이 잠근 토큰이다.");
+        }
+        token.x = op.payload.x;
+        token.y = op.payload.y;
+        this.broadcast("token.move", { tokenId: token.id, x: token.x, y: token.y }, conn.nickname);
+        return;
+      }
+      case "token.remove": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 토큰을 지울 수 있다.");
+        const idx = this.tokens.findIndex((t) => t.id === op.payload.tokenId);
+        if (idx === -1) return void sendError(conn.socket, "not_found", "그런 토큰이 없다.");
+        this.tokens.splice(idx, 1);
+        this.broadcast("token.remove", { tokenId: op.payload.tokenId }, conn.nickname);
+        return;
+      }
+      case "token.lock": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 토큰을 잠글 수 있다.");
+        const token = this.tokens.find((t) => t.id === op.payload.tokenId);
+        if (!token) return void sendError(conn.socket, "not_found", "그런 토큰이 없다.");
+        token.locked = op.payload.locked;
+        this.broadcast("token.lock", { tokenId: token.id, locked: token.locked }, conn.nickname);
+        return;
+      }
+      case "dice.roll": {
+        const wantsSecret = op.payload.secret === true;
+        if (wantsSecret && conn.role !== "dm") {
+          return void sendError(conn.socket, "forbidden", "비밀 굴림은 DM만 할 수 있다.");
+        }
+        let spec;
+        try {
+          spec = parseDiceExpression(op.payload.expression);
+        } catch (err) {
+          return void sendError(conn.socket, "invalid_dice", (err as Error).message);
+        }
+        spec = { ...spec, secret: wantsSecret };
+        const result = rollDice(spec);
+        const entry: LogEntry = {
+          kind: "roll",
+          actor: conn.nickname,
+          expression: op.payload.expression,
+          rolls: result.rolls,
+          total: result.total,
+          mode: spec.mode,
+          secret: spec.secret,
+          at: new Date().toISOString(),
+        };
+        this.appendLog(entry);
+        this.broadcast("dice.roll", entry, conn.nickname, spec.secret ? (c) => c.role === "dm" : undefined);
+        return;
+      }
+      case "chat.say": {
+        const entry: LogEntry = {
+          kind: "chat",
+          actor: conn.nickname,
+          text: op.payload.text,
+          ...(op.payload.whisperTo !== undefined ? { whisperTo: op.payload.whisperTo } : {}),
+          at: new Date().toISOString(),
+        };
+        this.appendLog(entry);
+        const predicate = op.payload.whisperTo
+          ? (c: Connection) => c.nickname === conn.nickname || c.nickname === op.payload.whisperTo
+          : undefined;
+        this.broadcast("chat.say", entry, conn.nickname, predicate);
+        return;
+      }
+      case "ping.place": {
+        this.broadcast("ping.place", op.payload, conn.nickname);
+        return;
+      }
+    }
+  }
+}
+
+// zod discriminatedUnion을 감싸서 실패 메시지를 사람이 읽기 좋게 만든다.
+function clientOpSchemaSafeParse(data: unknown): { ok: true; op: ClientOp } | { ok: false; message: string } {
+  const result = clientOpSchema.safeParse(data);
+  if (result.success) return { ok: true, op: result.data };
+  return { ok: false, message: result.error.issues[0]?.message ?? "op 형식이 올바르지 않다." };
+}
+
+export class RoomRegistry {
+  private rooms = new Map<string, LiveRoom>();
+  constructor(private db: Database.Database) {}
+
+  getOrLoad(tableId: string): LiveRoom | undefined {
+    const existing = this.rooms.get(tableId);
+    if (existing) return existing;
+    const row = getTable(this.db, tableId);
+    if (!row) return undefined;
+    const room = new LiveRoom(this.db, row);
+    this.rooms.set(tableId, room);
+    return room;
+  }
+
+  destroy(): void {
+    for (const room of this.rooms.values()) room.destroy();
+    this.rooms.clear();
+  }
+}
