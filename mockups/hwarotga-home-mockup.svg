@@ -1,0 +1,242 @@
+<svg width="820" height="650" viewBox="0 0 820 650" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'Galmuri11','DungGeunMo','Neo둥근모', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', 'NanumGothic', sans-serif; }
+  </style>
+  <defs>
+    <radialGradient id="gTorch">
+      <stop offset="0" stop-color="#E8A13D" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#E8A13D" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gMoon">
+      <stop offset="0" stop-color="#7FA3B8" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#7FA3B8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="fSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <filter id="fGlowSoft" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#E8A13D" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="heroClip"><rect x="34" y="80" width="754" height="112" rx="10"/></clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="820" height="650" fill="#100C08"/>
+  <rect x="16" y="14" width="788" height="540" rx="12" fill="#1B1410" stroke="#4C3A27" stroke-width="1.5"/>
+
+  <!-- 상단 바 -->
+  <path d="M34 26 C30 32 30 37 34 39 C38 37 38 32 34 26 Z" fill="#E8A13D"/>
+  <circle cx="34" cy="35" r="2" fill="#F4BE6C"/>
+  <text x="44" y="40" font-size="14" font-weight="bold" fill="#EFDFB8">화롯가</text>
+
+  <rect x="280" y="25" width="226" height="24" rx="12" fill="#241C16" stroke="#3A2C1F"/>
+  <circle cx="296" cy="36" r="5" fill="none" stroke="#8C7A5A" stroke-width="1.5"/>
+  <line x1="300" y1="40" x2="304" y2="44" stroke="#8C7A5A" stroke-width="1.5"/>
+  <text x="312" y="40" font-size="10" fill="#8C7A5A">시나리오 · DM · 캠페인 검색</text>
+
+  <!-- ⑥ 스튜디오 입구 -->
+  <rect x="526" y="25" width="84" height="24" rx="12" fill="none" stroke="#E8A13D"/>
+  <text x="568" y="41" text-anchor="middle" font-size="10" font-weight="bold" fill="#E8A13D">+ 스튜디오</text>
+  <circle cx="508" cy="37" r="9" fill="#E8A13D"/>
+  <text x="508" y="41" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">6</text>
+
+  <!-- ① 프로필 칩 (플레이어 / DM 두 얼굴) -->
+  <rect x="626" y="23" width="162" height="28" rx="14" fill="#241C16" stroke="#4C3A27"/>
+  <g shape-rendering="crispEdges">
+    <rect x="633" y="27" width="20" height="20" rx="4" fill="#322822" stroke="#4C3A27"/>
+    <rect x="636" y="29.5" width="14" height="4" fill="#5A3A25"/>
+    <rect x="636" y="33.5" width="14" height="10" fill="#E9B98C"/>
+    <rect x="639" y="37" width="2" height="2" fill="#241A12"/><rect x="645" y="37" width="2" height="2" fill="#241A12"/>
+  </g>
+  <text x="660" y="41.5" font-size="11" font-weight="bold" fill="#EFDFB8">은우</text>
+  <rect x="692" y="29" width="46" height="16" rx="8" fill="none" stroke="#7FA3B8"/>
+  <text x="715" y="40" text-anchor="middle" font-size="8" fill="#7FA3B8">플레이어</text>
+  <rect x="744" y="29" width="34" height="16" rx="8" fill="none" stroke="#E8A13D"/>
+  <text x="761" y="40" text-anchor="middle" font-size="8" fill="#E8A13D">DM</text>
+  <circle cx="616" cy="37" r="9" fill="#E8A13D"/>
+  <text x="616" y="41" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">1</text>
+
+  <!-- ② 이어서 하기 (히어로) -->
+  <text x="34" y="72" font-size="12" fill="#B79C6A">이어서 하기</text>
+  <rect x="34" y="80" width="754" height="112" rx="10" fill="#141A21"/>
+  <g clip-path="url(#heroClip)">
+    <circle cx="736" cy="104" r="30" fill="url(#gMoon)"/>
+    <circle cx="736" cy="104" r="14" fill="#7FA3B8" opacity="0.9"/>
+    <g fill="#7FA3B8" opacity="0.12" filter="url(#fSoft)">
+      <circle cx="600" cy="150" r="26"/><circle cx="680" cy="160" r="30"/><circle cx="520" cy="158" r="22"/>
+    </g>
+    <rect x="34" y="164" width="754" height="28" fill="#0C1116"/>
+    <line x1="556" y1="172" x2="686" y2="172" stroke="#7FA3B8" stroke-width="2" opacity="0.2"/>
+    <line x1="580" y1="100" x2="580" y2="152" stroke="#232B33" stroke-width="2"/>
+    <line x1="648" y1="92" x2="648" y2="152" stroke="#232B33" stroke-width="2"/>
+    <polygon points="582,102 624,112 582,134" fill="#2C3A44" opacity="0.85"/>
+    <polygon points="646,94 688,106 646,128" fill="#2C3A44" opacity="0.85"/>
+    <polygon points="540,152 700,152 682,166 556,166" fill="#0A0D10" stroke="#232B33"/>
+  </g>
+  <rect x="34" y="80" width="754" height="112" rx="10" fill="none" stroke="#4C3A27"/>
+  <text x="54" y="140" font-size="17" font-weight="bold" fill="#EFDFB8">잿빛 항구의 유령선</text>
+  <text x="54" y="158" font-size="10.5" fill="#C9B896">3장 · 선창 아래  —  어젯밤 브란이 자연 20으로 자물쇠를 땄다</text>
+  <rect x="54" y="170" width="240" height="5" rx="2" fill="#140F0B"/>
+  <rect x="54" y="170" width="150" height="5" rx="2" fill="#E8A13D"/>
+  <polygon points="200,166 210,166 210,182 205,177 200,182" fill="#C75146"/>
+  <circle cx="316" cy="172" r="9" fill="#E8A13D"/>
+  <text x="316" y="176" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">2</text>
+  <rect x="664" y="146" width="104" height="30" rx="8" fill="#E8A13D"/>
+  <polygon points="678,154 678,168 690,161" fill="#1B1410"/>
+  <text x="696" y="166" font-size="12" font-weight="bold" fill="#1B1410">이어하기</text>
+
+  <!-- ③ 라이브 세션 줄 -->
+  <path d="M38 200 C35.5 204 35.5 207 38 208.5 C40.5 207 40.5 204 38 200 Z" fill="#E8A13D"/>
+  <text x="48" y="210" font-size="12" fill="#B79C6A">타오르는 모닥불 — 라이브 세션</text>
+  <circle cx="25" cy="205" r="9" fill="#E8A13D"/>
+  <text x="25" y="209" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">3</text>
+
+  <!-- 라이브 카드 1: 던전 -->
+  <rect x="34" y="218" width="238" height="96" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="36" y="220" width="234" height="54" rx="6" fill="#1A130C"/>
+  <circle cx="104" cy="240" r="18" fill="url(#gTorch)"/>
+  <path d="M104 232 C101.5 236 101.5 239 104 240.5 C106.5 239 106.5 236 104 232 Z" fill="#E8A13D"/>
+  <circle cx="204" cy="240" r="18" fill="url(#gTorch)"/>
+  <path d="M204 232 C201.5 236 201.5 239 204 240.5 C206.5 239 206.5 236 204 232 Z" fill="#E8A13D"/>
+  <rect x="36" y="264" width="234" height="10" fill="#241A12"/>
+  <rect x="42" y="226" width="52" height="16" rx="8" fill="#C75146"/>
+  <path d="M50 229.5 C48.5 232 48.5 233.5 50 234.5 C51.5 233.5 51.5 232 50 229.5 Z" fill="#FBEAD1"/>
+  <text x="58" y="238" font-size="8" font-weight="bold" fill="#FFF6EC">LIVE</text>
+  <rect x="214" y="226" width="50" height="16" rx="8" fill="#140F0B" fill-opacity="0.85" stroke="#4C3A27"/>
+  <text x="239" y="237.5" text-anchor="middle" font-size="8" fill="#C9B896">3/5석</text>
+  <text x="44" y="290" font-size="11" font-weight="bold" fill="#EFDFB8">왕의 무덤 원정대</text>
+  <text x="44" y="304" font-size="9" fill="#8C7A5A">DM 미르 · 5e · 20:30 시작</text>
+
+  <!-- 라이브 카드 2: 숲 -->
+  <rect x="292" y="218" width="238" height="96" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="294" y="220" width="234" height="54" rx="6" fill="#131B14"/>
+  <polygon points="330,272 350,232 370,272" fill="#2E4A33"/>
+  <polygon points="376,272 394,240 412,272" fill="#26402B"/>
+  <polygon points="418,272 442,226 466,272" fill="#2E4A33"/>
+  <circle cx="490" cy="234" r="6" fill="#7FA3B8" opacity="0.8"/>
+  <rect x="300" y="226" width="52" height="16" rx="8" fill="#C75146"/>
+  <path d="M308 229.5 C306.5 232 306.5 233.5 308 234.5 C309.5 233.5 309.5 232 308 229.5 Z" fill="#FBEAD1"/>
+  <text x="316" y="238" font-size="8" font-weight="bold" fill="#FFF6EC">LIVE</text>
+  <rect x="472" y="226" width="50" height="16" rx="8" fill="#140F0B" fill-opacity="0.85" stroke="#4C3A27"/>
+  <text x="497" y="237.5" text-anchor="middle" font-size="8" fill="#C9B896">2/4석</text>
+  <text x="302" y="290" font-size="11" font-weight="bold" fill="#EFDFB8">가시숲의 밤사냥</text>
+  <text x="302" y="304" font-size="9" fill="#8C7A5A">DM 하나 · 초보 환영</text>
+
+  <!-- 라이브 카드 3: 여관 -->
+  <rect x="550" y="218" width="238" height="96" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="552" y="220" width="234" height="54" rx="6" fill="#201410"/>
+  <circle cx="668" cy="244" r="22" fill="url(#gTorch)"/>
+  <rect x="650" y="230" width="36" height="28" fill="#E8A13D" opacity="0.85"/>
+  <path d="M650 244 H686 M668 230 V258" stroke="#3B2D1F" stroke-width="2"/>
+  <rect x="716" y="238" width="22" height="36" fill="#171009"/>
+  <rect x="558" y="226" width="52" height="16" rx="8" fill="#C75146"/>
+  <path d="M566 229.5 C564.5 232 564.5 233.5 566 234.5 C567.5 233.5 567.5 232 566 229.5 Z" fill="#FBEAD1"/>
+  <text x="574" y="238" font-size="8" font-weight="bold" fill="#FFF6EC">LIVE</text>
+  <rect x="730" y="226" width="50" height="16" rx="8" fill="#140F0B" fill-opacity="0.85" stroke="#4C3A27"/>
+  <text x="755" y="237.5" text-anchor="middle" font-size="8" fill="#C9B896">4/5석</text>
+  <text x="560" y="290" font-size="11" font-weight="bold" fill="#EFDFB8">여관 뒷문의 의뢰</text>
+  <text x="560" y="304" font-size="9" fill="#8C7A5A">DM 두레 · 원샷 90분</text>
+
+  <!-- 싱글플레이 서가 -->
+  <text x="34" y="336" font-size="12" fill="#B79C6A">혼자 떠나는 모험 — 싱글플레이</text>
+
+  <!-- 포스터 1: 잊힌 제단 -->
+  <rect x="34" y="346" width="104" height="150" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="36" y="348" width="100" height="92" rx="6" fill="#1B1622"/>
+  <rect x="64" y="396" width="44" height="8" fill="#4A4456"/>
+  <rect x="68" y="404" width="36" height="26" fill="#3A3442"/>
+  <circle cx="74" cy="386" r="10" fill="url(#gTorch)"/>
+  <path d="M74 380 C72 383 72 385 74 386.5 C76 385 76 383 74 380 Z" fill="#E8A13D"/>
+  <circle cx="96" cy="386" r="10" fill="url(#gTorch)"/>
+  <path d="M96 380 C94 383 94 385 96 386.5 C98 385 98 383 96 380 Z" fill="#E8A13D"/>
+  <text x="42" y="458" font-size="10" font-weight="bold" fill="#EFDFB8">잊힌 제단</text>
+  <polygon points="46,472 49.5,474 49.5,478 46,480 42.5,478 42.5,474" fill="#E8A13D"/>
+  <polygon points="58,472 61.5,474 61.5,478 58,480 54.5,478 54.5,474" fill="#E8A13D"/>
+  <text x="130" y="480" text-anchor="end" font-size="8" fill="#8C7A5A">~45분</text>
+
+  <!-- 포스터 2: 지하실의 쥐들 -->
+  <rect x="154" y="346" width="104" height="150" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="156" y="348" width="100" height="92" rx="6" fill="#191310"/>
+  <rect x="172" y="400" width="16" height="22" fill="#4A3524"/><line x1="172" y1="408" x2="188" y2="408" stroke="#2C1F14" stroke-width="2"/>
+  <rect x="194" y="406" width="14" height="18" fill="#43301F"/><line x1="194" y1="413" x2="208" y2="413" stroke="#2C1F14" stroke-width="2"/>
+  <ellipse cx="228" cy="428" rx="8" ry="4.5" fill="#56504A"/>
+  <path d="M236 428 Q244 426 246 420" stroke="#56504A" stroke-width="1.5" fill="none"/>
+  <circle cx="222" cy="424" r="1.6" fill="#56504A"/>
+  <ellipse cx="212" cy="433" rx="6" ry="3.5" fill="#463F39"/>
+  <text x="162" y="458" font-size="10" font-weight="bold" fill="#EFDFB8">지하실의 쥐들</text>
+  <polygon points="166,472 169.5,474 169.5,478 166,480 162.5,478 162.5,474" fill="#E8A13D"/>
+  <text x="250" y="480" text-anchor="end" font-size="8" fill="#8C7A5A">~30분 · 입문</text>
+  <circle cx="147" cy="468" r="9" fill="#E8A13D"/>
+  <text x="147" y="472" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">5</text>
+
+  <!-- 포스터 3: 설산의 등불 -->
+  <rect x="274" y="346" width="104" height="150" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="276" y="348" width="100" height="92" rx="6" fill="#16202C"/>
+  <polygon points="278,440 314,376 348,440" fill="#223140"/>
+  <polygon points="306,390 314,376 322,390" fill="#DDE6EE"/>
+  <polygon points="330,440 356,392 376,440" fill="#1B2836"/>
+  <circle cx="352" cy="404" r="14" fill="url(#gTorch)"/>
+  <rect x="348" y="398" width="8" height="11" fill="#E8A13D" stroke="#8A5E1E"/>
+  <line x1="352" y1="392" x2="352" y2="398" stroke="#8A5E1E"/>
+  <circle cx="290" cy="366" r="1.2" fill="#DDE6EE" opacity="0.8"/><circle cx="308" cy="358" r="1.2" fill="#DDE6EE" opacity="0.8"/>
+  <circle cx="336" cy="368" r="1.2" fill="#DDE6EE" opacity="0.8"/><circle cx="292" cy="392" r="1.2" fill="#DDE6EE" opacity="0.8"/>
+  <text x="282" y="458" font-size="10" font-weight="bold" fill="#EFDFB8">설산의 등불</text>
+  <polygon points="286,472 289.5,474 289.5,478 286,480 282.5,478 282.5,474" fill="#E8A13D"/>
+  <polygon points="298,472 301.5,474 301.5,478 298,480 294.5,478 294.5,474" fill="#E8A13D"/>
+  <polygon points="310,472 313.5,474 313.5,478 310,480 306.5,478 306.5,474" fill="#E8A13D"/>
+  <text x="370" y="480" text-anchor="end" font-size="8" fill="#8C7A5A">~90분</text>
+
+  <!-- 포스터 4: 지하수로의 노래 -->
+  <rect x="394" y="346" width="104" height="150" rx="8" fill="#241C16" stroke="#4C3A27"/>
+  <rect x="396" y="348" width="100" height="92" rx="6" fill="#10242A"/>
+  <path d="M416 412 A 30 30 0 0 1 476 412" stroke="#1C3A40" stroke-width="8" fill="none"/>
+  <rect x="396" y="412" width="100" height="28" fill="#0D3038"/>
+  <path d="M400 422 Q410 418 420 422 T440 422 T460 422 T480 422" stroke="#1E4A52" stroke-width="1.5" fill="none"/>
+  <path d="M400 432 Q410 428 420 432 T440 432 T460 432 T480 432" stroke="#1E4A52" stroke-width="1.5" fill="none"/>
+  <circle cx="444" cy="388" r="3.5" fill="#7FA3B8"/>
+  <line x1="447.5" y1="388" x2="447.5" y2="372" stroke="#7FA3B8" stroke-width="1.5"/>
+  <path d="M447.5 372 Q454 374 452 380" stroke="#7FA3B8" stroke-width="1.5" fill="none"/>
+  <text x="402" y="458" font-size="10" font-weight="bold" fill="#EFDFB8">지하수로의 노래</text>
+  <polygon points="406,472 409.5,474 409.5,478 406,480 402.5,478 402.5,474" fill="#E8A13D"/>
+  <polygon points="418,472 421.5,474 421.5,478 418,480 414.5,478 414.5,474" fill="#E8A13D"/>
+  <text x="490" y="480" text-anchor="end" font-size="8" fill="#8C7A5A">~60분</text>
+
+  <!-- ④ 호버로 펼쳐진 포스터: 달빛 도서관 -->
+  <rect x="514" y="346" width="190" height="150" rx="8" fill="#241C16" stroke="#E8A13D" stroke-width="1.5" filter="url(#fGlowSoft)"/>
+  <rect x="516" y="348" width="86" height="146" rx="6" fill="#221A2E"/>
+  <circle cx="584" cy="364" r="12" fill="url(#gMoon)"/>
+  <circle cx="584" cy="364" r="7" fill="#7FA3B8" opacity="0.9"/>
+  <line x1="522" y1="386" x2="596" y2="386" stroke="#3A2F4A" stroke-width="3"/>
+  <rect x="526" y="372" width="5" height="14" fill="#6E5A93"/><rect x="533" y="374" width="4" height="12" fill="#4E6E86"/>
+  <rect x="539" y="371" width="6" height="15" fill="#8FA872"/><rect x="547" y="374" width="4" height="12" fill="#C75146"/>
+  <line x1="522" y1="414" x2="596" y2="414" stroke="#3A2F4A" stroke-width="3"/>
+  <rect x="530" y="400" width="5" height="14" fill="#C75146"/><rect x="537" y="402" width="4" height="12" fill="#6E5A93"/>
+  <rect x="543" y="399" width="6" height="15" fill="#4E6E86"/><rect x="551" y="402" width="4" height="12" fill="#8FA872"/>
+  <line x1="522" y1="442" x2="596" y2="442" stroke="#3A2F4A" stroke-width="3"/>
+  <rect x="534" y="428" width="5" height="14" fill="#8FA872"/><rect x="541" y="430" width="4" height="12" fill="#C75146"/>
+  <rect x="547" y="427" width="6" height="15" fill="#6E5A93"/>
+  <text x="610" y="366" font-size="11" font-weight="bold" fill="#EFDFB8">달빛 도서관</text>
+  <text x="610" y="382" font-size="9" fill="#C9B896">사서가 사라진 밤,</text>
+  <text x="610" y="394" font-size="9" fill="#C9B896">책들이 속삭인다.</text>
+  <polygon points="614,406 617.5,408 617.5,412 614,414 610.5,412 610.5,408" fill="#E8A13D"/>
+  <polygon points="626,406 629.5,408 629.5,412 626,414 622.5,412 622.5,408" fill="#E8A13D"/>
+  <text x="610" y="428" font-size="8.5" fill="#8C7A5A">~60분 · 게임북</text>
+  <text x="610" y="441" font-size="8.5" fill="#8C7A5A">글쓴이 · DM 하나</text>
+  <rect x="610" y="460" width="84" height="24" rx="6" fill="#E8A13D"/>
+  <polygon points="620,466 620,478 630,472" fill="#1B1410"/>
+  <text x="636" y="476" font-size="10" font-weight="bold" fill="#1B1410">지금 시작</text>
+  <circle cx="508" cy="352" r="9" fill="#E8A13D"/>
+  <text x="508" y="356" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">4</text>
+
+  <text x="744" y="424" font-size="11" fill="#8C7A5A">더보기 ▸</text>
+
+  <!-- 하단 여백 안내선 -->
+  <text x="34" y="534" font-size="10" fill="#5C4A35">새로 들어온 의뢰서  ·  친구의 캠페인  ·  다시 보고 싶은 모험 …  (아래로 이어지는 줄들)</text>
+
+  <!-- 범례 -->
+  <text x="32" y="580" font-size="12.5"><tspan fill="#E8A13D">①  </tspan><tspan fill="#C9B896">한 계정, 두 얼굴 — 플레이어 수첩과 DM의 서재</tspan></text>
+  <text x="428" y="580" font-size="12.5"><tspan fill="#E8A13D">②  </tspan><tspan fill="#C9B896">이어서 하기 — 읽던 페이지에 꽂아둔 책갈피</tspan></text>
+  <text x="32" y="606" font-size="12.5"><tspan fill="#E8A13D">③  </tspan><tspan fill="#C9B896">라이브 = 타오르는 불꽃 배지와 남은 좌석</tspan></text>
+  <text x="428" y="606" font-size="12.5"><tspan fill="#E8A13D">④  </tspan><tspan fill="#C9B896">포스터에 머무르면 표지가 펼쳐진다 (호버)</tspan></text>
+  <text x="32" y="632" font-size="12.5"><tspan fill="#E8A13D">⑤  </tspan><tspan fill="#C9B896">난이도는 주사위 개수, 예상 시간 함께 표기</tspan></text>
+  <text x="428" y="632" font-size="12.5"><tspan fill="#E8A13D">⑥  </tspan><tspan fill="#C9B896">'+ 스튜디오' — 시나리오·캠페인 제작 모드 입구</tspan></text>
+</svg>

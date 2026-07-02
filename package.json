@@ -1,0 +1,19 @@
+{
+  "name": "hearthside",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "test": "vitest run",
+    "hearth": "tsx apps/cli/src/index.ts",
+    "schema:gen": "tsx packages/schema/scripts/generate-json-schema.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4",
+    "tsx": "^4.19.2"
+  }
+}

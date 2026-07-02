@@ -1,0 +1,253 @@
+<svg width="820" height="560" viewBox="0 0 820 560" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'Galmuri11','DungGeunMo','Neo둥근모', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+  </style>
+  <defs>
+    <radialGradient id="gAmber">
+      <stop offset="0" stop-color="#E8A13D" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#E8A13D" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#E8A13D" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gTorch">
+      <stop offset="0" stop-color="#E8A13D" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#E8A13D" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="fGlowAmber" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#E8A13D" flood-opacity="0.85"/>
+    </filter>
+    <filter id="fGlowSoft" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#E8A13D" flood-opacity="0.45"/>
+    </filter>
+    <filter id="fSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <filter id="fPanel" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <pattern id="tiles" x="94" y="76" width="64" height="64" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="32" height="32" fill="#322822"/>
+      <rect x="32" y="0" width="32" height="32" fill="#2E241E"/>
+      <rect x="0" y="32" width="32" height="32" fill="#2E241E"/>
+      <rect x="32" y="32" width="32" height="32" fill="#322822"/>
+      <path d="M0 0.5 H64 M0 32.5 H64 M0.5 0 V64 M32.5 0 V64" stroke="#000000" stroke-opacity="0.22" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- 배경 & 스크린 프레임 -->
+  <rect x="0" y="0" width="820" height="560" fill="#100C08"/>
+  <rect x="16" y="14" width="788" height="440" rx="12" fill="#1B1410" stroke="#4C3A27" stroke-width="1.5"/>
+
+  <!-- 워드마크 -->
+  <path d="M34 26 C30 32 30 37 34 39 C38 37 38 32 34 26 Z" fill="#E8A13D"/>
+  <circle cx="34" cy="35" r="2" fill="#F4BE6C"/>
+  <text x="44" y="40" font-size="14" font-weight="bold" fill="#EFDFB8">화롯가</text>
+  <text x="790" y="40" text-anchor="end" font-size="10" fill="#8C7A5A">세션 화면 목업 · v0.1</text>
+
+  <!-- ① 이니셔티브 리본 (전투 중에만) -->
+  <line x1="246" y1="28" x2="660" y2="28" stroke="#4C3A27" stroke-width="2"/>
+  <line x1="303" y1="28" x2="303" y2="32" stroke="#4C3A27" stroke-width="1.5"/>
+  <line x1="403" y1="28" x2="403" y2="32" stroke="#4C3A27" stroke-width="1.5"/>
+  <line x1="503" y1="28" x2="503" y2="32" stroke="#4C3A27" stroke-width="1.5"/>
+  <line x1="603" y1="28" x2="603" y2="32" stroke="#4C3A27" stroke-width="1.5"/>
+  <rect x="258" y="32" width="90" height="24" rx="4" fill="#2A211A" stroke="#E8A13D" stroke-width="2" filter="url(#fGlowAmber)"/>
+  <circle cx="271" cy="44" r="3" fill="#E8A13D"/>
+  <text x="280" y="48" font-size="11.5" fill="#EFDFB8">카엘</text>
+  <rect x="358" y="32" width="90" height="24" rx="4" fill="#2A211A" stroke="#4C3A27"/>
+  <circle cx="371" cy="44" r="3" fill="#8FA872"/>
+  <text x="380" y="48" font-size="11.5" fill="#C9B896">브란</text>
+  <rect x="458" y="32" width="90" height="24" rx="4" fill="#2A211A" stroke="#4C3A27"/>
+  <circle cx="471" cy="44" r="3" fill="#C75146"/>
+  <text x="480" y="48" font-size="11.5" fill="#C9B896">고블린 A</text>
+  <rect x="558" y="32" width="90" height="24" rx="4" fill="#2A211A" stroke="#4C3A27"/>
+  <circle cx="571" cy="44" r="3" fill="#7FA3B8"/>
+  <text x="580" y="48" font-size="11.5" fill="#C9B896">미라</text>
+  <text x="668" y="47" font-size="11" fill="#B79C6A">라운드 2</text>
+  <circle cx="230" cy="44" r="9" fill="#E8A13D"/>
+  <text x="230" y="48" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">1</text>
+
+  <!-- 좌측 도구 레일 -->
+  <rect x="30" y="64" width="36" height="214" rx="8" fill="#241C16" stroke="#3A2C1F"/>
+  <rect x="35" y="72" width="26" height="26" rx="5" fill="#E8A13D" fill-opacity="0.16" stroke="#E8A13D"/>
+  <polygon points="42,77 42,93 46,89 49,95 51.5,93.5 48.5,88 53,88" fill="#EFDFB8"/>
+  <g fill="#C9B896" fill-opacity="0.9">
+    <circle cx="44" cy="129" r="4"/><circle cx="50" cy="127" r="5"/><circle cx="55" cy="130" r="3.5"/>
+    <circle cx="48" cy="164" r="4"/><rect x="43" y="170" width="10" height="7" rx="2"/>
+  </g>
+  <circle cx="48" cy="211" r="6" fill="none" stroke="#C9B896" stroke-width="1.5"/>
+  <circle cx="48" cy="211" r="1.8" fill="#C9B896"/>
+  <rect x="41" y="247" width="12" height="9" fill="none" stroke="#C9B896" stroke-width="1.3"/>
+  <rect x="45" y="251" width="12" height="9" fill="none" stroke="#C9B896" stroke-width="1.3"/>
+
+  <!-- 지도 캔버스 -->
+  <rect x="78" y="60" width="482" height="356" fill="#14100B" stroke="#060302"/>
+  <rect x="94" y="76" width="448" height="320" fill="url(#tiles)"/>
+  <rect x="94" y="74" width="448" height="2" fill="#4C3A27" opacity="0.7"/>
+
+  <!-- 벽 횃불 -->
+  <circle cx="194" cy="86" r="34" fill="url(#gTorch)"/>
+  <rect x="192" y="72" width="4" height="7" fill="#4C3A27"/>
+  <path d="M194 60 C190 66 190 70 194 72 C198 70 198 66 194 60 Z" fill="#E8A13D"/>
+  <circle cx="194" cy="68" r="2" fill="#F4BE6C"/>
+  <circle cx="438" cy="86" r="34" fill="url(#gTorch)"/>
+  <rect x="436" y="72" width="4" height="7" fill="#4C3A27"/>
+  <path d="M438 60 C434 66 434 70 438 72 C442 70 442 66 438 60 Z" fill="#E8A13D"/>
+  <circle cx="438" cy="68" r="2" fill="#F4BE6C"/>
+
+  <!-- 소품: 나무 상자 -->
+  <rect x="160" y="268" width="26" height="26" fill="#6B4A2B" stroke="#3B2D1F" stroke-width="2"/>
+  <path d="M160 268 L186 294 M186 268 L160 294" stroke="#3B2D1F" stroke-width="1.5"/>
+
+  <!-- ③ 전장의 안개 (수동) -->
+  <path d="M414,76 H542 V396 H406 C420,372 396,352 410,330 C424,308 398,288 412,266 C426,244 400,224 412,202 C424,180 398,160 410,138 C420,118 402,96 414,76 Z" fill="#0B0705" opacity="0.94"/>
+  <g fill="#0B0705" opacity="0.5" filter="url(#fSoft)">
+    <circle cx="406" cy="130" r="12"/><circle cx="400" cy="240" r="14"/><circle cx="408" cy="340" r="11"/>
+  </g>
+  <circle cx="486" cy="112" r="9" fill="#E8A13D"/>
+  <text x="486" y="116" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">3</text>
+
+  <!-- ② 말하는 사람 글로우 + 토큰들 -->
+  <circle cx="238" cy="252" r="30" fill="url(#gAmber)"/>
+
+  <!-- 카엘 (전사, 현재 턴 · 발화 중) -->
+  <g transform="translate(238,252)" shape-rendering="crispEdges">
+    <ellipse cx="0" cy="14" rx="10" ry="3" fill="#000" opacity="0.35"/>
+    <circle r="17" fill="none" stroke="#E8A13D" stroke-width="2"/>
+    <circle r="21" fill="none" stroke="#E8A13D" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.9"/>
+    <rect x="10" y="-12" width="2" height="11" fill="#C9C2A6"/><rect x="8" y="-2" width="6" height="2" fill="#6B4A2B"/>
+    <rect x="-5" y="-16" width="10" height="3" fill="#5A3A25"/>
+    <rect x="-5" y="-13" width="10" height="7" fill="#E9B98C"/>
+    <rect x="-3" y="-10" width="2" height="2" fill="#241A12"/><rect x="1" y="-10" width="2" height="2" fill="#241A12"/>
+    <rect x="-7" y="-6" width="14" height="9" fill="#B5433A"/>
+    <rect x="-7" y="0" width="14" height="2" fill="#7A2F28"/>
+    <rect x="-9" y="-5" width="2" height="6" fill="#E9B98C"/><rect x="7" y="-5" width="2" height="6" fill="#E9B98C"/>
+    <rect x="-5" y="3" width="4" height="7" fill="#2C2018"/><rect x="1" y="3" width="4" height="7" fill="#2C2018"/>
+    <rect x="-15" y="20" width="30" height="4" fill="#140F0B"/><rect x="-15" y="20" width="23" height="4" fill="#8FA872"/>
+  </g>
+  <circle cx="272" cy="228" r="9" fill="#E8A13D"/>
+  <text x="272" y="232" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">2</text>
+
+  <!-- 미라 (마법사) -->
+  <g transform="translate(174,188)" shape-rendering="crispEdges">
+    <ellipse cx="0" cy="14" rx="10" ry="3" fill="#000" opacity="0.35"/>
+    <circle r="17" fill="none" stroke="#7FA3B8" stroke-width="2"/>
+    <rect x="-12" y="-14" width="2" height="26" fill="#6B4A2B"/><circle cx="-11" cy="-16" r="3" fill="#F4BE6C"/>
+    <rect x="-7" y="-5" width="14" height="11" fill="#5B7E97"/>
+    <rect x="-7" y="4" width="14" height="2" fill="#3C5568"/>
+    <rect x="-4" y="-11" width="8" height="6" fill="#E9B98C"/>
+    <rect x="-3" y="-9" width="2" height="2" fill="#241A12"/><rect x="1" y="-9" width="2" height="2" fill="#241A12"/>
+    <rect x="-9" y="-13" width="18" height="2" fill="#3C5568"/>
+    <polygon points="-8,-13 8,-13 0,-24" fill="#4E6E86"/>
+    <rect x="-15" y="20" width="30" height="4" fill="#140F0B"/><rect x="-15" y="20" width="30" height="4" fill="#8FA872"/>
+  </g>
+
+  <!-- 브란 (도적) -->
+  <g transform="translate(334,316)" shape-rendering="crispEdges">
+    <ellipse cx="0" cy="14" rx="10" ry="3" fill="#000" opacity="0.35"/>
+    <circle r="17" fill="none" stroke="#8FA872" stroke-width="2"/>
+    <rect x="9.5" y="-7" width="1.5" height="7" fill="#C9C2A6"/>
+    <rect x="-6" y="-16" width="12" height="4" fill="#46583C"/>
+    <rect x="-5" y="-13" width="10" height="7" fill="#55703F"/>
+    <rect x="-3" y="-11" width="6" height="3" fill="#E9B98C"/>
+    <rect x="-2.5" y="-10.5" width="1.5" height="1.5" fill="#241A12"/><rect x="1" y="-10.5" width="1.5" height="1.5" fill="#241A12"/>
+    <rect x="-7" y="-6" width="14" height="9" fill="#3F5138"/>
+    <rect x="-7" y="0" width="14" height="2" fill="#2C3A26"/>
+    <rect x="-9" y="-5" width="2" height="6" fill="#55703F"/><rect x="7" y="-5" width="2" height="6" fill="#55703F"/>
+    <rect x="-5" y="3" width="4" height="7" fill="#232B1E"/><rect x="1" y="3" width="4" height="7" fill="#232B1E"/>
+    <rect x="-15" y="20" width="30" height="4" fill="#140F0B"/><rect x="-15" y="20" width="26" height="4" fill="#8FA872"/>
+  </g>
+
+  <!-- 고블린 (안개 가장자리에서 등장) -->
+  <g transform="translate(398,284)" shape-rendering="crispEdges">
+    <ellipse cx="0" cy="11" rx="8" ry="2.5" fill="#000" opacity="0.35"/>
+    <circle r="15" fill="none" stroke="#C75146" stroke-width="2"/>
+    <rect x="8" y="-9" width="3" height="10" fill="#6B4A2B"/>
+    <polygon points="-5,-8 -11,-11 -5,-5" fill="#7FAE5A"/><polygon points="5,-8 11,-11 5,-5" fill="#7FAE5A"/>
+    <rect x="-5" y="-11" width="10" height="7" fill="#7FAE5A"/>
+    <rect x="-3" y="-9" width="2" height="2" fill="#C75146"/><rect x="1" y="-9" width="2" height="2" fill="#C75146"/>
+    <rect x="-6" y="-4" width="12" height="7" fill="#55703F"/>
+    <rect x="-4" y="3" width="3" height="5" fill="#2F3A26"/><rect x="1" y="3" width="3" height="5" fill="#2F3A26"/>
+    <rect x="-15" y="17" width="30" height="4" fill="#140F0B"/><rect x="-15" y="17" width="12" height="4" fill="#C75146"/>
+  </g>
+
+  <!-- ⑤ 모험 일지 (채팅+굴림 통합) -->
+  <g filter="url(#fPanel)">
+    <rect x="572" y="60" width="216" height="356" rx="8" fill="#EFDFB8" stroke="#8C6F49" stroke-width="2"/>
+  </g>
+  <rect x="572" y="60" width="216" height="26" rx="8" fill="#E3CFA3"/>
+  <rect x="574" y="74" width="212" height="12" fill="#E3CFA3"/>
+  <line x1="573" y1="86" x2="787" y2="86" stroke="#C9B27F"/>
+  <path d="M594 80 Q600 70 610 68" stroke="#3B2D1F" stroke-width="1.5" fill="none"/>
+  <text x="686" y="78" text-anchor="middle" font-size="13" font-weight="bold" fill="#3B2D1F">모험 일지</text>
+
+  <text x="584" y="104" font-size="10" fill="#8C7A5A">미라님이 여관에 들어왔어요.</text>
+  <circle cx="587" cy="114.5" r="2" fill="#E8A13D"/>
+  <text x="593" y="118" font-size="10" fill="#8C7A5A">촛불이 하나 켜집니다.</text>
+
+  <text x="584" y="142" font-size="11" font-weight="bold" fill="#3B2D1F">미라</text>
+  <text x="584" y="157" font-size="11" fill="#3B2D1F">「함정 냄새가 나, 다들 멈춰.」</text>
+
+  <rect x="580" y="170" width="200" height="44" rx="6" fill="#F7EDD2" stroke="#C9B27F"/>
+  <text x="590" y="186" font-size="10" fill="#6B563A">브란 · 은신 판정</text>
+  <text x="590" y="204" font-size="11" fill="#3B2D1F">1d20 + 7</text>
+  <text x="770" y="206" text-anchor="end" font-size="20" font-weight="bold" fill="#3B2D1F">23</text>
+
+  <rect x="580" y="222" width="200" height="52" rx="6" fill="#FBF2D9" stroke="#E8A13D" stroke-width="1.5" filter="url(#fGlowSoft)"/>
+  <text x="590" y="239" font-size="10" fill="#6B563A">카엘 · 공격 굴림</text>
+  <text x="590" y="264" font-size="22" font-weight="bold" fill="#C77E1F">20</text>
+  <text x="626" y="262" font-size="13" font-weight="bold" fill="#C77E1F">치명타!</text>
+  <path d="M762 230 L764 236 L770 238 L764 240 L762 246 L760 240 L754 238 L760 236 Z" fill="#E8A13D"/>
+  <path d="M748 256 L749.5 260.5 L754 262 L749.5 263.5 L748 268 L746.5 263.5 L742 262 L746.5 260.5 Z" fill="#E8A13D"/>
+
+  <text x="584" y="296" font-size="10" font-style="italic" fill="#8C7A5A">(귓속말) DM → 브란</text>
+  <text x="584" y="310" font-size="10" font-style="italic" fill="#8C7A5A">「자물쇠에 바늘 함정이 있다.」</text>
+
+  <rect x="580" y="382" width="200" height="26" rx="13" fill="#FFF8E6" stroke="#C9B27F"/>
+  <text x="592" y="399" font-size="10" fill="#A78F63">이야기하기…  /roll 1d20+5</text>
+  <circle cx="768" cy="395" r="9" fill="#E8A13D"/>
+  <polygon points="765,391 772,395 765,399" fill="#3B2D1F"/>
+  <circle cx="566" cy="72" r="9" fill="#E8A13D"/>
+  <text x="566" y="76" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">5</text>
+
+  <!-- ⑥ 내 캐릭터 미니 카드 -->
+  <rect x="78" y="420" width="178" height="30" rx="6" fill="#241C16" stroke="#4C3A27"/>
+  <g shape-rendering="crispEdges">
+    <rect x="84" y="423" width="24" height="24" rx="3" fill="#322822" stroke="#4C3A27"/>
+    <rect x="88" y="426" width="16" height="5" fill="#5A3A25"/>
+    <rect x="88" y="431" width="16" height="11" fill="#E9B98C"/>
+    <rect x="91" y="435" width="2.5" height="2.5" fill="#241A12"/><rect x="98.5" y="435" width="2.5" height="2.5" fill="#241A12"/>
+  </g>
+  <text x="114" y="432" font-size="10" font-weight="bold" fill="#EFDFB8">카엘 · 전사 5</text>
+  <rect x="114" y="437" width="82" height="7" rx="3" fill="#140F0B"/>
+  <rect x="114" y="437" width="63" height="7" rx="3" fill="#8FA872"/>
+  <text x="200" y="444" font-size="8" fill="#C9B896">24/31</text>
+  <rect x="226" y="424" width="24" height="22" rx="4" fill="#2A211A" stroke="#E8A13D"/>
+  <text x="238" y="438" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#E8A13D">d20</text>
+  <circle cx="66" cy="435" r="9" fill="#E8A13D"/>
+  <text x="66" y="439" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">6</text>
+
+  <!-- ④ 주사위 트레이 -->
+  <rect x="300" y="418" width="224" height="32" rx="10" fill="#2A211A" stroke="#4C3A27" stroke-width="1.5"/>
+  <rect x="306" y="423" width="212" height="22" rx="7" fill="#1D1611"/>
+  <polygon points="326,425 318,442 334,442" fill="#EFDFB8" stroke="#3B2D1F"/>
+  <text x="326" y="440" text-anchor="middle" font-size="7" fill="#3B2D1F">4</text>
+  <rect x="358" y="426" width="16" height="16" rx="2" fill="#EFDFB8" stroke="#3B2D1F"/>
+  <text x="366" y="437.5" text-anchor="middle" font-size="7.5" fill="#3B2D1F">6</text>
+  <polygon points="406,424 414,434 406,444 398,434" fill="#EFDFB8" stroke="#3B2D1F"/>
+  <text x="406" y="437.5" text-anchor="middle" font-size="7.5" fill="#3B2D1F">8</text>
+  <polygon points="446,424 454.5,430.5 451,441 441,441 437.5,430.5" fill="#EFDFB8" stroke="#3B2D1F"/>
+  <text x="446" y="437.5" text-anchor="middle" font-size="6.5" fill="#3B2D1F">12</text>
+  <polygon points="490,423 497,427.5 497,437.5 490,442 483,437.5 483,427.5" fill="#F4BE6C" stroke="#8A5E1E" stroke-width="1.2"/>
+  <path d="M490 423 L483 437.5 M490 423 L497 437.5 M483 437.5 H497" stroke="#8A5E1E" stroke-width="0.7" opacity="0.65"/>
+  <text x="490" y="436.5" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#3B2D1F">20</text>
+  <path d="M503 415 L504.3 418.7 L508 420 L504.3 421.3 L503 425 L501.7 421.3 L498 420 L501.7 418.7 Z" fill="#E8A13D"/>
+  <circle cx="288" cy="434" r="9" fill="#E8A13D"/>
+  <text x="288" y="438" text-anchor="middle" font-size="11" font-weight="bold" fill="#1B1410">4</text>
+
+  <!-- 범례 -->
+  <text x="32" y="486" font-size="12.5"><tspan fill="#E8A13D">①  </tspan><tspan fill="#C9B896">이니셔티브 리본 — 전투 중에만 내려온다</tspan></text>
+  <text x="428" y="486" font-size="12.5"><tspan fill="#E8A13D">②  </tspan><tspan fill="#C9B896">말하는 사람의 토큰이 촛불처럼 빛난다</tspan></text>
+  <text x="32" y="511" font-size="12.5"><tspan fill="#E8A13D">③  </tspan><tspan fill="#C9B896">DM이 브러시로 걷어내는 수동 안개</tspan></text>
+  <text x="428" y="511" font-size="12.5"><tspan fill="#E8A13D">④  </tspan><tspan fill="#C9B896">나무 트레이 — 주사위를 집어서 굴리는 손맛</tspan></text>
+  <text x="32" y="536" font-size="12.5"><tspan fill="#E8A13D">⑤  </tspan><tspan fill="#C9B896">채팅·굴림·귓속말이 한 권에 담긴 모험 일지</tspan></text>
+  <text x="428" y="536" font-size="12.5"><tspan fill="#E8A13D">⑥  </tspan><tspan fill="#C9B896">내 캐릭터 카드 — 원클릭 판정</tspan></text>
+</svg>
