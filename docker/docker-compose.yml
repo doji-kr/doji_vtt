@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: hearthside-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      INVITE_CODE: ${INVITE_CODE:-}
+      SESSION_SECRET: ${SESSION_SECRET}
+    volumes:
+      - hearthside_data:/data
+
+volumes:
+  hearthside_data:

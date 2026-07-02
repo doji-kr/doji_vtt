@@ -1,0 +1,212 @@
+/* 화롯가 디자인 시스템 — CLAUDE.md §6 */
+:root {
+  --hs-char: #1b1410;
+  --hs-wood: #2a211a;
+  --hs-wood-edge: #4c3a27;
+  --hs-parchment: #efdfb8;
+  --hs-ink: #3b2d1f;
+  --hs-candle: #e8a13d;
+  --hs-candle-bright: #f4be6c;
+  --hs-ember: #c75146;
+  --hs-sage: #8fa872;
+  --hs-moon: #7fa3b8;
+
+  --hs-font-pixel: "Galmuri11", "DungGeunMo", monospace;
+  --hs-font-body: "Pretendard", system-ui, sans-serif;
+}
+
+.hs-root {
+  background: var(--hs-char);
+  color: var(--hs-parchment);
+  font-family: var(--hs-font-body);
+  min-height: 100%;
+}
+
+/* ── ParchmentPanel ── */
+.hs-parchment-panel {
+  background: var(--hs-parchment);
+  color: var(--hs-ink);
+  border: 3px solid var(--hs-wood-edge);
+  border-radius: 6px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ── WoodButton ── */
+.hs-wood-button {
+  font-family: var(--hs-font-body);
+  font-weight: 600;
+  background: var(--hs-wood);
+  color: var(--hs-parchment);
+  border: 2px solid var(--hs-wood-edge);
+  border-radius: 4px;
+  padding: 0.6rem 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.hs-wood-button:hover:not(:disabled) {
+  background: var(--hs-candle);
+  color: var(--hs-char);
+  border-color: var(--hs-candle-bright);
+}
+.hs-wood-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.hs-wood-button--primary {
+  background: var(--hs-candle);
+  color: var(--hs-char);
+}
+.hs-wood-button--primary:hover:not(:disabled) {
+  background: var(--hs-candle-bright);
+}
+
+/* ── PosterCard ── */
+.hs-poster-card {
+  width: 200px;
+  border: 2px solid var(--hs-wood-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--hs-wood);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.hs-poster-card:hover {
+  transform: translateY(-2px);
+}
+.hs-poster-card__art {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  display: block;
+  object-fit: cover;
+}
+.hs-poster-card__body {
+  padding: 0.6rem 0.7rem 0.8rem;
+}
+.hs-poster-card__title {
+  font-family: var(--hs-font-pixel);
+  font-size: 0.95rem;
+  color: var(--hs-parchment);
+  margin: 0 0 0.3rem;
+}
+.hs-poster-card__logline {
+  font-size: 0.78rem;
+  color: var(--hs-parchment);
+  opacity: 0.75;
+  margin: 0 0 0.4rem;
+  line-height: 1.35;
+}
+.hs-poster-card__meta {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+}
+.hs-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+.hs-badge--solo {
+  background: var(--hs-sage);
+  color: var(--hs-char);
+}
+.hs-badge--difficulty {
+  background: var(--hs-moon);
+  color: var(--hs-char);
+}
+
+/* ── DiceTray ── */
+.hs-dice-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.hs-dice-tray__prompt {
+  font-family: var(--hs-font-pixel);
+  color: var(--hs-candle-bright);
+}
+.hs-dice-tray__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.hs-dice-tray__d20 {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--hs-candle);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  background: var(--hs-wood);
+  color: var(--hs-candle-bright);
+}
+.hs-dice-tray__d20--rolling {
+  animation: hs-dice-spin 0.5s ease-in-out;
+}
+@keyframes hs-dice-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.hs-dice-tray__input {
+  width: 4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 2px solid var(--hs-wood-edge);
+  background: var(--hs-parchment);
+  color: var(--hs-ink);
+  font-size: 0.95rem;
+}
+.hs-dice-tray__total {
+  font-family: var(--hs-font-pixel);
+  font-size: 1.1rem;
+  color: var(--hs-candle-bright);
+}
+
+/* ── CandleLoading ── */
+.hs-candle-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--hs-candle);
+  font-family: var(--hs-font-pixel);
+}
+.hs-candle-loading__flame {
+  width: 0.6rem;
+  height: 0.9rem;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: radial-gradient(circle at 50% 30%, var(--hs-candle-bright), var(--hs-ember));
+  animation: hs-flicker 1.1s ease-in-out infinite;
+}
+@keyframes hs-flicker {
+  0%, 100% { opacity: 1; transform: scaleY(1); }
+  50% { opacity: 0.7; transform: scaleY(0.85); }
+}
+
+/* ── EndingCard ── */
+.hs-ending-card {
+  text-align: center;
+  max-width: 480px;
+}
+.hs-ending-card__title {
+  font-family: var(--hs-font-pixel);
+  font-size: 1.4rem;
+  color: var(--hs-candle);
+  margin-bottom: 0.75rem;
+}
+.hs-ending-card__text {
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+.hs-ending-card__actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
