@@ -3,6 +3,15 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { config } from "./config.js";
 
+/** SQLite엔 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`가 없다 — 이미 있으면 조용히 건너뛴다.
+ * 5단계: plays에 scenarios 관련 컬럼 세 개를 기존 DB에도 안전하게 얹기 위해 쓴다. */
+function addColumnIfMissing(db: Database.Database, table: string, columnDef: string): void {
+  const columnName = columnDef.trim().split(/\s+/)[0]!;
+  const existing = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (existing.some((c) => c.name === columnName)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`);
+}
+
 export function openDb(dataDir: string = config.dataDir): Database.Database {
   mkdirSync(dataDir, { recursive: true });
   const db = new Database(join(dataDir, "hearthside.db"));
@@ -70,6 +79,30 @@ export function openDb(dataDir: string = config.dataDir): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_characters_table ON characters(table_id);
     CREATE INDEX IF NOT EXISTS idx_characters_owner ON characters(owner_user_id);
+
+    -- 5단계: 스튜디오 발행물. draft_json은 항상 parseModule 통과 가능한 원문만 존재한다
+    -- (파스 실패는 저장 자체를 400으로 거부하니, DB에 파스 불가능한 draft는 있을 수 없다).
+    -- published_json은 발행 시점의 스냅샷 복사본, published_hash는 재발행 stale 판정용.
+    CREATE TABLE IF NOT EXISTS scenarios (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL REFERENCES users(id),
+      draft_json TEXT NOT NULL,
+      published_json TEXT,
+      published_hash TEXT,
+      published_at TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_scenarios_owner ON scenarios(owner_user_id);
   `);
+
+  // 5단계: 기존 plays 행에 회원 귀속·프리뷰 격리·stale 판정용 컬럼 세 개를 얹는다.
+  // 회원이 만드는 새 play는 owner_user_id를 채우고, 게스트 흐름은 nickname 기준을 그대로 쓴다.
+  addColumnIfMissing(db, "plays", "owner_user_id TEXT REFERENCES users(id)");
+  addColumnIfMissing(db, "plays", "is_preview INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "plays", "module_hash TEXT");
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_plays_owner ON plays(owner_user_id);`);
+
   return db;
 }
