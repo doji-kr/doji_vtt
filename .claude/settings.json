@@ -5,5 +5,8 @@
       "Bash(pnpm --filter @hearthside/web build)",
       "Bash(awk *)"
     ]
+  },
+  "enabledPlugins": {
+    "ponytail@ponytail": true
   }
 }
