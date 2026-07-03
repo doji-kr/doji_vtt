@@ -94,6 +94,9 @@ interface ClientOp<T> {
 | `status.set` | `{ characterId: string; status: string[] }` | 소유자 본인 또는 DM. 자유 텍스트 태그 배열(SRD 조건 목록을 그대로 베끼지 않는다) |
 | `initiative.set` | `{ id?: string; label: string; order: number; characterId?: string \| null }` | DM만. `id` 없으면 새 항목 추가, 있으면 갱신(순번 재확정 등) |
 | `initiative.remove` | `{ id: string }` | DM만 |
+| `fog.init` | `{ cols: number; rows: number }` | DM만. 그리드 해상도에 맞춘 W×H 안개를 전부 hidden으로 새로 만든다(기존 안개는 버려진다) |
+| `fog.reveal` | `{ cells: { x: number; y: number }[] }` | DM만. 브러시 스트로크가 놓일 때(뗄 때) 좌표 목록을 한 번에 보낸다 — `fog.init` 전이면 `error fog_not_initialized` |
+| `fog.reset` | `{}` | DM만. 같은 크기로 전부 다시 hidden — `fog.init` 전이면 `error fog_not_initialized` |
 
 최소 세트(`table.join token.add token.move token.remove map.set grid.set dice.roll chat.say
 ping.place`)에 `token.lock`을 추가했다 — "DM 잠금 토큰은 플레이어가 못 움직인다"는 DoD 요건을
@@ -104,6 +107,16 @@ WS 연결 자체 + `hello`가 그 역할을 한다(아래 재접속 절차).
 `initiative.remove`)은 5e 라이트 시트·이니셔티브·HP/상태 기능의 실시간판이다. 이니셔티브
 **정렬**(숫자 비교) 자체는 클라이언트가 해도 된다 — §1.6이 금지하는 건 "판정 해석"이지
 "산수"이므로, 서버는 순번만 저장하고 정렬은 순번 리본 UI가 그린다.
+
+**4단계 §3에서 추가된 3종**(`fog.init` `fog.reveal` `fog.reset`)은 수동 안개(브러시)의
+실시간판이다. CLAUDE.md §9의 "동적 조명/시야" 금지는 **참가자마다 다른 시야를 서버가
+자동 계산하는 것**을 막는 것이고, 여기서는 DM이 붓으로 걷은 영역이 **모든 비-DM 참가자에게
+공통으로** 보이는 단일 공유 레이어라 범위 밖이 아니다. DM은 채널 분리 수준의 서버측 필터링
+없이 클라이언트가 role로 분기해 안개 레이어 자체를 그리지 않는 것으로 충분하다 — 안개는
+비밀 정보가 아니라 뷰 모드 차이다. 안개 상태는 `RoomState.fog`에 실려 스냅샷에 포함되고,
+페이로드 크기를 줄이려 RLE(run-length encoding, `apps/server/src/fog.ts`)로 압축해
+`{ cols, rows, runs: number[] }` 형태로 직렬화한다(§8 성능 예산 — 이미지 압축 라이브러리
+없이 순수 함수로 충분).
 
 ## s2c 이벤트
 
@@ -137,6 +150,7 @@ interface RoomState {
   log: LogEntry[]; // 최근 채팅+굴림, 최대 100개
   characters: Character[]; // 4단계 §2
   initiative: InitiativeEntry[]; // 4단계 §2
+  fog: FogState | null; // 4단계 §3 — null이면 안개 미준비(지도 전체가 그냥 보임)
 }
 
 interface Token {
@@ -174,6 +188,14 @@ interface InitiativeEntry {
   label: string;
   order: number; // 숫자 비교로 정렬(내림차순) — 정렬 자체는 산수라 기계가 해도 된다
   characterId: string | null; // 캐릭터 시트와 느슨하게 연결, NPC/몬스터는 null
+}
+
+// 4단계 §3: 수동 안개 — RLE 비트마스크. runs[0]은 hidden 구간 길이(0일 수 있음),
+// 그 다음부터 hidden/revealed가 번갈아 나온다. 합은 항상 cols*rows.
+interface FogState {
+  cols: number;
+  rows: number;
+  runs: number[];
 }
 
 type LogEntry =
@@ -215,6 +237,7 @@ type LogEntry =
 | `character.set` (생성) | ✅(회원) | ✅(회원만 — 게스트는 `error account_required`) |
 | `character.set` (갱신) / `character.hp` / `status.set` | ✅ (모든 캐릭터) | ✅ (자기 소유 캐릭터만) |
 | `initiative.set` / `initiative.remove` | ✅ | ❌ — 시도하면 `error forbidden` |
+| `fog.init` / `fog.reveal` / `fog.reset` | ✅ | ❌ — 시도하면 `error forbidden` |
 
 위반 시 `error` 이벤트로 응답하고 **연결은 유지**한다(끊지 않음 — DoD 요건).
 
