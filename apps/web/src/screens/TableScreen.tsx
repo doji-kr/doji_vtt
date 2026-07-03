@@ -120,6 +120,8 @@ export function TableScreen({
   const [mapBusy, setMapBusy] = useState(false);
   const [mapUploadError, setMapUploadError] = useState<string | null>(null);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [fogDraft, setFogDraft] = useState({ cols: 20, rows: 15 });
+  const [fogBrushActive, setFogBrushActive] = useState(false);
 
   function canEditCharacter(c: Character): boolean {
     return selfUserId !== null && (c.ownerUserId === selfUserId || selfRole === "dm");
@@ -218,6 +220,9 @@ export function TableScreen({
             resyncKey={resyncKey}
             onTokenDragEnd={(tokenId, x, y) => sendOp("token.move", { tokenId, x, y })}
             onPing={(x, y) => sendOp("ping.place", { x, y })}
+            fog={room.fog}
+            fogBrushActive={fogBrushActive}
+            onFogReveal={(cells) => sendOp("fog.reveal", { cells })}
           />
 
           {selfRole === "dm" && (
@@ -269,6 +274,49 @@ export function TableScreen({
                       />
                     </label>
                     <WoodButton onClick={() => sendOp("grid.set", gridDraft)}>그리드 저장</WoodButton>
+                  </div>
+                </div>
+
+                <div>
+                  <strong>안개</strong>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginTop: "0.3rem" }}>
+                    {!room.fog ? (
+                      <>
+                        <label>
+                          가로 칸수{" "}
+                          <input
+                            type="number"
+                            min={1}
+                            max={200}
+                            value={fogDraft.cols}
+                            onChange={(e) => setFogDraft((f) => ({ ...f, cols: Number(e.target.value) }))}
+                            style={{ width: 55 }}
+                          />
+                        </label>
+                        <label>
+                          세로 칸수{" "}
+                          <input
+                            type="number"
+                            min={1}
+                            max={200}
+                            value={fogDraft.rows}
+                            onChange={(e) => setFogDraft((f) => ({ ...f, rows: Number(e.target.value) }))}
+                            style={{ width: 55 }}
+                          />
+                        </label>
+                        <WoodButton onClick={() => sendOp("fog.init", fogDraft)}>안개 준비</WoodButton>
+                      </>
+                    ) : (
+                      <>
+                        <WoodButton onClick={() => setFogBrushActive((v) => !v)}>
+                          {fogBrushActive ? "붓 거두기" : "안개 걷기(붓)"}
+                        </WoodButton>
+                        <WoodButton onClick={() => sendOp("fog.reset", {})}>안개 초기화</WoodButton>
+                        {fogBrushActive && (
+                          <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>지도를 드래그해 안개를 걷는다.</span>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 

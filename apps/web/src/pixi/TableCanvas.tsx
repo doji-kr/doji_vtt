@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Assets, Container, FederatedPointerEvent, Graphics, Sprite, Text, TextStyle } from "pixi.js";
-import type { Grid, Ping, Token } from "../table-reducer.js";
+import type { FogState, Grid, Ping, Token } from "../table-reducer.js";
+import { decodeFog } from "../table-reducer.js";
 import { initialOf, ringColorFor } from "../pixel-token.js";
 
 // CLAUDE.md §6 — 색은 CSS 변수로 정의돼 있지만 PixiJS는 CSS를 못 읽으므로 여기서 숫자로 복제한다.
@@ -10,9 +11,13 @@ const WOOD_EDGE = 0x4c3a27;
 const EMBER = 0xc75146;
 const CHAR = 0x1b1410;
 const PARCHMENT = 0xefdfb8;
+/** 순검정 — CHAR(앱 배경)와 구분되게, 지도 유무와 무관하게 항상 뚜렷이 대비된다. */
+const FOG_COLOR = 0x000000;
 
 const PING_LIFETIME_MS = 1400;
 const TOKEN_RADIUS = 14;
+/** 브러시 한 번에 드러나는 정사각 반경(셀 단위) — 3×3 블록. */
+const FOG_BRUSH_RADIUS = 1;
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace("#", ""), 16);
@@ -30,6 +35,13 @@ export interface TableCanvasProps {
   onPing: (x: number, y: number) => void;
   /** 서버 거부(error) 등으로 강제 재동기화가 필요할 때 이 값을 증가시켜 넘긴다. */
   resyncKey: number;
+  /** 4단계 §3: 수동 안개. DM은 항상 안개 없이 전체를 본다 — 채널 분리가 아니라 뷰 모드
+   * 차이라 클라이언트가 role로 분기해도 충분하다(서버는 이미 모두에게 같은 마스크를 보낸다). */
+  fog: FogState | null;
+  /** true면 DM이 브러시 모드다 — 캔버스를 드래그하면 지나간 셀들이 로컬 커서 표시만 되고,
+   * 놓을 때 한 번에 fog.reveal로 전송된다(토큰 드래그와 같은 "커밋은 뗄 때" 패턴). */
+  fogBrushActive: boolean;
+  onFogReveal: (cells: { x: number; y: number }[]) => void;
 }
 
 function toPixel(grid: Grid, gx: number, gy: number): { x: number; y: number } {
@@ -43,9 +55,12 @@ function toGrid(grid: Grid, px: number, py: number): { x: number; y: number } {
 export function TableCanvas(props: TableCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
-  const layersRef = useRef<{ map: Container; grid: Graphics; tokens: Container; pings: Container } | null>(null);
+  const layersRef = useRef<{ map: Container; fog: Graphics; grid: Graphics; tokens: Container; pings: Container } | null>(
+    null,
+  );
   const mapSpriteRef = useRef<Sprite | null>(null);
   const redrawAllRef = useRef<(() => void) | null>(null);
+  const cleanupBrushRef = useRef<(() => void) | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
 
@@ -73,11 +88,14 @@ export function TableCanvas(props: TableCanvasProps) {
       app.stage.hitArea = app.screen;
 
       const mapLayer = new Container();
+      const fogLayer = new Graphics();
       const gridLayer = new Graphics();
       const tokensLayer = new Container();
       const pingsLayer = new Container();
-      app.stage.addChild(mapLayer, gridLayer, tokensLayer, pingsLayer);
-      layersRef.current = { map: mapLayer, grid: gridLayer, tokens: tokensLayer, pings: pingsLayer };
+      // 지도 → 안개 → 그리드 → 토큰 → 핑 순서(PROMPT-stage4.md §3) — 안개가 그리드보다
+      // 아래에 있어야 그리드 선이 항상 보여서 방향감을 유지한다.
+      app.stage.addChild(mapLayer, fogLayer, gridLayer, tokensLayer, pingsLayer);
+      layersRef.current = { map: mapLayer, fog: fogLayer, grid: gridLayer, tokens: tokensLayer, pings: pingsLayer };
 
       app.canvas.addEventListener("dblclick", (ev: MouseEvent) => {
         const rect = app.canvas.getBoundingClientRect();
@@ -87,6 +105,52 @@ export function TableCanvas(props: TableCanvasProps) {
         propsRef.current.onPing(g.x, g.y);
       });
 
+      // 안개 브러시 — 놓을 때 한 번만 fog.reveal을 보낸다(토큰 드래그와 같은 커밋 시점 패턴).
+      let brushActive = false;
+      const brushAccum = new Map<string, { x: number; y: number }>();
+
+      function cellUnderEvent(ev: MouseEvent): { x: number; y: number } {
+        const rect = app.canvas.getBoundingClientRect();
+        const px = ev.clientX - rect.left;
+        const py = ev.clientY - rect.top;
+        const g = toGrid(propsRef.current.grid, px, py);
+        return { x: Math.floor(g.x), y: Math.floor(g.y) };
+      }
+
+      function addBrushCells(center: { x: number; y: number }): void {
+        for (let dy = -FOG_BRUSH_RADIUS; dy <= FOG_BRUSH_RADIUS; dy++) {
+          for (let dx = -FOG_BRUSH_RADIUS; dx <= FOG_BRUSH_RADIUS; dx++) {
+            const x = center.x + dx;
+            const y = center.y + dy;
+            if (x < 0 || y < 0) continue;
+            brushAccum.set(`${x},${y}`, { x, y });
+          }
+        }
+      }
+
+      function onBrushMouseDown(ev: MouseEvent): void {
+        if (!propsRef.current.fogBrushActive || propsRef.current.selfRole !== "dm") return;
+        brushActive = true;
+        brushAccum.clear();
+        addBrushCells(cellUnderEvent(ev));
+      }
+      function onBrushMouseMove(ev: MouseEvent): void {
+        if (!brushActive) return;
+        addBrushCells(cellUnderEvent(ev));
+      }
+      function onBrushMouseUp(): void {
+        if (!brushActive) return;
+        brushActive = false;
+        if (brushAccum.size > 0) propsRef.current.onFogReveal([...brushAccum.values()]);
+        brushAccum.clear();
+      }
+      app.canvas.addEventListener("mousedown", onBrushMouseDown);
+      app.canvas.addEventListener("mousemove", onBrushMouseMove);
+      window.addEventListener("mouseup", onBrushMouseUp);
+      cleanupBrushRef.current = () => {
+        window.removeEventListener("mouseup", onBrushMouseUp);
+      };
+
       app.ticker.add(() => redrawPings());
 
       redrawAll();
@@ -94,8 +158,30 @@ export function TableCanvas(props: TableCanvasProps) {
 
     function redrawAll(): void {
       redrawMap();
+      redrawFog();
       redrawGrid();
       redrawTokens();
+    }
+
+    function redrawFog(): void {
+      const layers = layersRef.current;
+      if (!layers) return;
+      const g = layers.fog;
+      g.clear();
+      const { fog, selfRole, grid } = propsRef.current;
+      // DM은 항상 전체를 본다 — 안개 레이어 자체를 그리지 않는다(뷰 모드 차이, 비밀 아님).
+      if (!fog || selfRole === "dm") return;
+      const cells = decodeFog(fog);
+      for (let y = 0; y < fog.rows; y++) {
+        for (let x = 0; x < fog.cols; x++) {
+          if (cells[y * fog.cols + x]) continue;
+          const px = toPixel(grid, x, y);
+          g.rect(px.x, px.y, grid.cellSize, grid.cellSize);
+        }
+      }
+      // CHAR(캔버스 배경)와 같은 색이면 지도가 없을 때 안개가 배경과 구분되지 않는다 —
+      // 순검정 + 높은 알파로 배경/지도 어느 쪽과도 뚜렷이 대비되게 한다.
+      g.fill({ color: FOG_COLOR, alpha: 0.96 });
     }
 
     async function redrawMap(): Promise<void> {
@@ -236,6 +322,8 @@ export function TableCanvas(props: TableCanvasProps) {
 
     return () => {
       destroyed = true;
+      cleanupBrushRef.current?.();
+      cleanupBrushRef.current = null;
       const app2 = appRef.current;
       appRef.current = null;
       layersRef.current = null;
@@ -251,7 +339,15 @@ export function TableCanvas(props: TableCanvasProps) {
   useEffect(() => {
     redrawAllRef.current?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.mapPath, props.grid.cellSize, props.grid.offsetX, props.grid.offsetY, props.tokens, props.resyncKey]);
+  }, [
+    props.mapPath,
+    props.grid.cellSize,
+    props.grid.offsetX,
+    props.grid.offsetY,
+    props.tokens,
+    props.resyncKey,
+    props.fog,
+  ]);
 
   return <div ref={wrapRef} className="hs-table-canvas-wrap" />;
 }

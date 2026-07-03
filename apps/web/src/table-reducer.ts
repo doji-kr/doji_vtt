@@ -77,6 +77,13 @@ export interface InitiativeEntry {
   characterId: string | null;
 }
 
+// 4단계 §3: 수동 안개 — RLE(hidden부터 시작하는 run 길이 배열), 셀 인덱스는 y*cols+x.
+export interface FogState {
+  cols: number;
+  rows: number;
+  runs: number[];
+}
+
 export interface RoomState {
   name: string;
   ownerNickname: string;
@@ -87,6 +94,49 @@ export interface RoomState {
   log: LogEntry[];
   characters: Character[];
   initiative: InitiativeEntry[];
+  fog: FogState | null;
+}
+
+/** runs(RLE, hidden부터 시작) → boolean[] (true = revealed). 서버 apps/server/src/fog.ts와 동일 로직 —
+ * 안개 레이어를 그리려면 캔버스가 셀별 상태를 알아야 한다. */
+export function decodeFog(fog: FogState): boolean[] {
+  const cells = new Array<boolean>(fog.cols * fog.rows).fill(false);
+  let i = 0;
+  let revealed = false;
+  for (const run of fog.runs) {
+    if (revealed) cells.fill(true, i, i + run);
+    i += run;
+    revealed = !revealed;
+  }
+  return cells;
+}
+
+function encodeFog(cells: boolean[]): number[] {
+  const runs: number[] = [];
+  let current = false;
+  let count = 0;
+  for (const revealed of cells) {
+    if (revealed === current) {
+      count += 1;
+    } else {
+      runs.push(count);
+      current = revealed;
+      count = 1;
+    }
+  }
+  runs.push(count);
+  return runs;
+}
+
+/** 좌표 목록을 revealed로 표시한 새 FogState를 반환한다 — fog.reveal 브로드캐스트를
+ * 로컬 상태에 반영할 때 쓴다(서버가 델타 좌표만 보내므로 클라이언트가 직접 병합한다). */
+function revealFogCells(fog: FogState, points: { x: number; y: number }[]): FogState {
+  const cells = decodeFog(fog);
+  for (const p of points) {
+    if (p.x < 0 || p.x >= fog.cols || p.y < 0 || p.y >= fog.rows) continue;
+    cells[p.y * fog.cols + p.x] = true;
+  }
+  return { cols: fog.cols, rows: fog.rows, runs: encodeFog(cells) };
 }
 
 export interface Ping {
@@ -266,6 +316,18 @@ export function applyServerMessage(
       const { id } = payloadAs<{ id: string }>(msg);
       const initiative = state.room.initiative.filter((e) => e.id !== id);
       return { ...state, room: { ...state.room, initiative }, seq: msg.seq ?? state.seq };
+    }
+    case "fog.init":
+    case "fog.reset": {
+      if (!state.room) return state;
+      const fog = payloadAs<FogState>(msg);
+      return { ...state, room: { ...state.room, fog }, seq: msg.seq ?? state.seq };
+    }
+    case "fog.reveal": {
+      if (!state.room || !state.room.fog) return state;
+      const { cells } = payloadAs<{ cells: { x: number; y: number }[] }>(msg);
+      const fog = revealFogCells(state.room.fog, cells);
+      return { ...state, room: { ...state.room, fog }, seq: msg.seq ?? state.seq };
     }
     default:
       return state;

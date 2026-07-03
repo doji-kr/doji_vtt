@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { WebSocket } from "ws";
 import { parseDiceExpression, rollDice } from "./dice.js";
+import { initFog, resetFog, revealCells } from "./fog.js";
 import { getTable, saveTableSnapshot, type TableRow } from "./table-store.js";
 import {
   insertCharacter,
@@ -16,6 +17,7 @@ import type {
   Character,
   ClientOp,
   ErrorEnvelope,
+  FogState,
   Grid,
   InitiativeEntry,
   LogEntry,
@@ -63,6 +65,7 @@ export class LiveRoom {
   private log: LogEntry[];
   private characters: Character[];
   private initiative: InitiativeEntry[];
+  private fog: FogState | null;
   private participants: Map<string, Participant> = new Map();
   private connections: Set<Connection> = new Set();
   private seq: number;
@@ -81,10 +84,16 @@ export class LiveRoom {
     this.ownerNickname = row.owner_display_name;
     this.mapPath = row.map_path;
     this.grid = JSON.parse(row.grid_json);
-    const persisted = JSON.parse(row.state_json) as { tokens: Token[]; log: LogEntry[]; initiative?: InitiativeEntry[] };
+    const persisted = JSON.parse(row.state_json) as {
+      tokens: Token[];
+      log: LogEntry[];
+      initiative?: InitiativeEntry[];
+      fog?: FogState | null;
+    };
     this.tokens = persisted.tokens;
     this.log = persisted.log;
     this.initiative = persisted.initiative ?? [];
+    this.fog = persisted.fog ?? null;
     this.characters = listCharactersByTable(db, row.id).map(rowToCharacter);
     this.seq = row.last_seq;
 
@@ -104,7 +113,7 @@ export class LiveRoom {
       this.db,
       this.id,
       this.grid,
-      { tokens: this.tokens, log: this.log, initiative: this.initiative },
+      { tokens: this.tokens, log: this.log, initiative: this.initiative, fog: this.fog },
       this.seq,
     );
     this.dirty = false;
@@ -141,6 +150,7 @@ export class LiveRoom {
       log: logForRole(this.log, role),
       characters: this.characters,
       initiative: this.initiative,
+      fog: this.fog,
     };
   }
 
@@ -393,6 +403,26 @@ export class LiveRoom {
         if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 이니셔티브를 지울 수 있다.");
         this.initiative = this.initiative.filter((e) => e.id !== op.payload.id);
         this.broadcast("initiative.remove", { id: op.payload.id }, conn.nickname);
+        return;
+      }
+      case "fog.init": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 안개를 준비할 수 있다.");
+        this.fog = initFog(op.payload.cols, op.payload.rows);
+        this.broadcast("fog.init", this.fog, conn.nickname);
+        return;
+      }
+      case "fog.reveal": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 안개를 걷을 수 있다.");
+        if (!this.fog) return void sendError(conn.socket, "fog_not_initialized", "안개가 아직 준비되지 않았다.");
+        this.fog = revealCells(this.fog, op.payload.cells);
+        this.broadcast("fog.reveal", { cells: op.payload.cells }, conn.nickname);
+        return;
+      }
+      case "fog.reset": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 안개를 초기화할 수 있다.");
+        if (!this.fog) return void sendError(conn.socket, "fog_not_initialized", "안개가 아직 준비되지 않았다.");
+        this.fog = resetFog(this.fog);
+        this.broadcast("fog.reset", this.fog, conn.nickname);
         return;
       }
     }

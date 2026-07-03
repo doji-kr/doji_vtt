@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyServerMessage,
+  decodeFog,
   initialTableClientState,
   type RoomState,
   type ServerMessage,
@@ -16,6 +17,7 @@ const baseRoom: RoomState = {
   log: [],
   characters: [],
   initiative: [],
+  fog: null,
 };
 
 const zeroMods = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
@@ -199,5 +201,28 @@ describe("applyServerMessage", () => {
 
     s = applyServerMessage(s, { type: "initiative.remove", payload: { id: "i1" }, seq: 6 }, "DM닉");
     expect(s.room?.initiative).toHaveLength(0);
+  });
+
+  it("fog.init/fog.reveal/fog.reset이 반영된다", () => {
+    let s = applyServerMessage(initialTableClientState, snapshot(), "DM닉");
+    s = applyServerMessage(s, { type: "fog.init", payload: { cols: 2, rows: 2, runs: [4] }, seq: 4 }, "DM닉");
+    expect(s.room?.fog).toEqual({ cols: 2, rows: 2, runs: [4] });
+    expect(decodeFog(s.room!.fog!)).toEqual([false, false, false, false]);
+
+    s = applyServerMessage(s, { type: "fog.reveal", payload: { cells: [{ x: 1, y: 0 }] }, seq: 5 }, "DM닉");
+    expect(s.room?.fog).toEqual({ cols: 2, rows: 2, runs: [1, 1, 2] });
+    expect(decodeFog(s.room!.fog!)).toEqual([false, true, false, false]);
+
+    s = applyServerMessage(s, { type: "fog.reset", payload: { cols: 2, rows: 2, runs: [4] }, seq: 6 }, "DM닉");
+    expect(s.room?.fog).toEqual({ cols: 2, rows: 2, runs: [4] });
+  });
+
+  it("안개가 없는 상태에서 fog.reveal이 오면 무시된다", () => {
+    const s = applyServerMessage(
+      applyServerMessage(initialTableClientState, snapshot(), "DM닉"),
+      { type: "fog.reveal", payload: { cells: [{ x: 0, y: 0 }] }, seq: 4 },
+      "DM닉",
+    );
+    expect(s.room?.fog).toBeNull();
   });
 });

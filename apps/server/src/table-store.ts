@@ -21,6 +21,7 @@ export interface PersistedRoomState {
   tokens: RoomState["tokens"];
   log: RoomState["log"];
   initiative: RoomState["initiative"];
+  fog: RoomState["fog"];
 }
 
 const SELECT_WITH_OWNER = `

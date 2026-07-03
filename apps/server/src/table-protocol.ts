@@ -84,6 +84,17 @@ export const initiativeEntrySchema = z.object({
 });
 export type InitiativeEntry = z.infer<typeof initiativeEntrySchema>;
 
+// ── 4단계 §3: 수동 안개 ──────────────────────────────────────
+
+/** RLE — 항상 "가려진(hidden) 구간" 길이부터 시작해 hidden/revealed를 번갈아 담는다.
+ * 합계는 반드시 cols*rows와 같아야 한다. 큰 그리드에서도 페이로드가 작다. */
+export const fogStateSchema = z.object({
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
+  runs: z.array(z.number().int().nonnegative()),
+});
+export type FogState = z.infer<typeof fogStateSchema>;
+
 export interface RoomState {
   name: string;
   ownerNickname: string;
@@ -94,6 +105,7 @@ export interface RoomState {
   log: LogEntry[];
   characters: Character[];
   initiative: InitiativeEntry[];
+  fog: FogState | null;
 }
 
 // ── c2s 오퍼레이션 ────────────────────────────────────────
@@ -167,6 +179,17 @@ export const clientOpSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({ type: z.literal("initiative.remove"), payload: z.object({ id: z.string() }) }),
+  z.object({
+    type: z.literal("fog.init"),
+    payload: z.object({ cols: z.number().int().min(1).max(200), rows: z.number().int().min(1).max(200) }),
+  }),
+  z.object({
+    type: z.literal("fog.reveal"),
+    payload: z.object({
+      cells: z.array(z.object({ x: z.number().int().nonnegative(), y: z.number().int().nonnegative() })).min(1).max(2000),
+    }),
+  }),
+  z.object({ type: z.literal("fog.reset"), payload: z.object({}) }),
 ]);
 export type ClientOp = z.infer<typeof clientOpSchema>;
 

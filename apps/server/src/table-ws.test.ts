@@ -521,4 +521,96 @@ describe("실시간 테이블 WS", () => {
       dmWs2.close();
     });
   });
+
+  describe("수동 안개", () => {
+    it("DM이 안개를 준비하고 걷으면 플레이어 화면에도 반영되고, 초기화하면 다시 가려진다", async () => {
+      const dmCookie = await registerMember(base, "DM안개1");
+      const playerCookie = await registerMember(base, "플레이어안개1");
+      const table = await createTable(base, dmCookie, "안개 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+
+      const initOnPlayerP = waitFor(playerWs, (m) => m.type === "fog.init");
+      send(dmWs, "fog.init", { cols: 4, rows: 3 });
+      const initOnPlayer = await initOnPlayerP;
+      expect(initOnPlayer.payload).toEqual({ cols: 4, rows: 3, runs: [12] });
+
+      const revealOnPlayerP = waitFor(playerWs, (m) => m.type === "fog.reveal");
+      send(dmWs, "fog.reveal", { cells: [{ x: 1, y: 0 }] });
+      const revealOnPlayer = await revealOnPlayerP;
+      expect(revealOnPlayer.payload).toEqual({ cells: [{ x: 1, y: 0 }] });
+
+      const resetOnPlayerP = waitFor(playerWs, (m) => m.type === "fog.reset");
+      send(dmWs, "fog.reset", {});
+      const resetOnPlayer = await resetOnPlayerP;
+      expect(resetOnPlayer.payload).toEqual({ cols: 4, rows: 3, runs: [12] });
+
+      dmWs.close();
+      playerWs.close();
+    });
+
+    it("플레이어는 안개 op를 시도할 수 없다", async () => {
+      const dmCookie = await registerMember(base, "DM안개2");
+      const playerCookie = await registerMember(base, "플레이어안개2");
+      const table = await createTable(base, dmCookie, "안개 권한 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+
+      send(playerWs, "fog.init", { cols: 4, rows: 3 });
+      const err1 = await waitFor(playerWs, (m) => m.type === "error");
+      expect(err1.payload.code).toBe("forbidden");
+
+      send(dmWs, "fog.init", { cols: 4, rows: 3 });
+      await waitFor(dmWs, (m) => m.type === "fog.init");
+
+      send(playerWs, "fog.reveal", { cells: [{ x: 0, y: 0 }] });
+      const err2 = await waitFor(playerWs, (m) => m.type === "error");
+      expect(err2.payload.code).toBe("forbidden");
+
+      send(playerWs, "fog.reset", {});
+      const err3 = await waitFor(playerWs, (m) => m.type === "error");
+      expect(err3.payload.code).toBe("forbidden");
+
+      dmWs.close();
+      playerWs.close();
+    });
+
+    it("안개 준비 전에 걷으려 하면 거부된다", async () => {
+      const dmCookie = await registerMember(base, "DM안개3");
+      const table = await createTable(base, dmCookie, "안개 미준비 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      send(dmWs, "fog.reveal", { cells: [{ x: 0, y: 0 }] });
+      const err = await waitFor(dmWs, (m) => m.type === "error");
+      expect(err.payload.code).toBe("fog_not_initialized");
+      dmWs.close();
+    });
+
+    it("재접속(새 소켓)해도 안개 상태가 스냅샷에 남아있다", async () => {
+      const dmCookie = await registerMember(base, "DM안개복원");
+      const table = await createTable(base, dmCookie, "안개 복원 테스트 방");
+
+      const dmWs1 = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs1);
+      send(dmWs1, "fog.init", { cols: 2, rows: 2 });
+      await waitFor(dmWs1, (m) => m.type === "fog.init");
+      send(dmWs1, "fog.reveal", { cells: [{ x: 0, y: 0 }] });
+      await waitFor(dmWs1, (m) => m.type === "fog.reveal");
+      dmWs1.close();
+
+      const dmWs2 = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs2);
+      send(dmWs2, "hello", {});
+      const snapshot = await waitFor(dmWs2, (m) => m.type === "state.snapshot");
+      expect(snapshot.payload.fog).toEqual({ cols: 2, rows: 2, runs: [0, 1, 3] });
+      dmWs2.close();
+    });
+  });
 });
