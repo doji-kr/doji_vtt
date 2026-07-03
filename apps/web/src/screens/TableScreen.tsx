@@ -4,13 +4,87 @@ import { api } from "../api.js";
 import { inviteUrl } from "../routing.js";
 import { useTableSocket } from "../useTableSocket.js";
 import { TableCanvas } from "../pixi/TableCanvas.js";
-import type { ChatLogEntry, LogEntry, RollLogEntry } from "../table-reducer.js";
+import type { AbilityMods, Character, ChatLogEntry, LogEntry, RollLogEntry } from "../table-reducer.js";
+
+const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"] as const;
 
 function isRoll(entry: LogEntry): entry is RollLogEntry {
   return entry.kind === "roll";
 }
 function isChat(entry: LogEntry): entry is ChatLogEntry {
   return entry.kind === "chat";
+}
+
+function fmtMod(mod: number): string {
+  return mod >= 0 ? `+${mod}` : `${mod}`;
+}
+
+/** 새 캐릭터 만들기 / 기존 시트 고치기를 겸하는 폼 — HP는 생성 시에만(hpMax), 갱신은
+ * character.hp 몫이라 여기서 다루지 않는다(PROMPT-stage4.md §2). */
+function CharacterForm({
+  initial,
+  onSubmit,
+  onCancel,
+}: {
+  initial?: Character;
+  onSubmit: (data: { name: string; class: string; abilityMods: AbilityMods; ac: number; hpMax?: number }) => void;
+  onCancel?: () => void;
+}) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = String(fd.get("name") ?? "").trim();
+    if (!name) return;
+    const abilityMods = {
+      str: Number(fd.get("str") || 0),
+      dex: Number(fd.get("dex") || 0),
+      con: Number(fd.get("con") || 0),
+      int: Number(fd.get("int") || 0),
+      wis: Number(fd.get("wis") || 0),
+      cha: Number(fd.get("cha") || 0),
+    };
+    const data: { name: string; class: string; abilityMods: AbilityMods; ac: number; hpMax?: number } = {
+      name,
+      class: String(fd.get("class") ?? "").trim(),
+      abilityMods,
+      ac: Number(fd.get("ac") || 10),
+    };
+    if (!initial) data.hpMax = Number(fd.get("hpMax") || 10);
+    onSubmit(data);
+    if (!initial) e.currentTarget.reset();
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+        <input name="name" placeholder="이름" defaultValue={initial?.name} maxLength={40} style={{ width: 100 }} required />
+        <input name="class" placeholder="클래스" defaultValue={initial?.class} maxLength={30} style={{ width: 90 }} />
+        <label style={{ fontSize: "0.75rem" }}>
+          AC <input name="ac" type="number" defaultValue={initial?.ac ?? 10} style={{ width: 50 }} />
+        </label>
+        {!initial && (
+          <label style={{ fontSize: "0.75rem" }}>
+            최대 HP <input name="hpMax" type="number" min={1} defaultValue={10} style={{ width: 60 }} />
+          </label>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+        {ABILITY_KEYS.map((k) => (
+          <label key={k} style={{ fontSize: "0.75rem" }}>
+            {k.toUpperCase()} <input name={k} type="number" defaultValue={initial?.abilityMods[k] ?? 0} style={{ width: 42 }} />
+          </label>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: "0.4rem" }}>
+        <WoodButton type="submit">{initial ? "저장" : "새 캐릭터 만들기"}</WoodButton>
+        {onCancel && (
+          <WoodButton type="button" onClick={onCancel}>
+            취소
+          </WoodButton>
+        )}
+      </div>
+    </form>
+  );
 }
 
 /** 장식용 판정 강조 — d20 표현식에서 실제 주사위 눈이 20/1이면 금빛/먼지 효과(§6). */
@@ -25,10 +99,12 @@ function d20FlavorClass(entry: RollLogEntry): string {
 export function TableScreen({
   tableId,
   selfNickname,
+  selfUserId,
   onExit,
 }: {
   tableId: string;
   selfNickname: string;
+  selfUserId: string | null;
   onExit: () => void;
 }) {
   const { state, connected, sendOp } = useTableSocket(tableId, selfNickname);
@@ -43,6 +119,17 @@ export function TableScreen({
   const [newTokenOwner, setNewTokenOwner] = useState<string>("");
   const [mapBusy, setMapBusy] = useState(false);
   const [mapUploadError, setMapUploadError] = useState<string | null>(null);
+  const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+
+  function canEditCharacter(c: Character): boolean {
+    return selfUserId !== null && (c.ownerUserId === selfUserId || selfRole === "dm");
+  }
+
+  /** "클릭 = 굴림" — 능력치 수정치를 클릭하면 1d20+N을 채팅 인풋에 채워둔다(§2, 새 주사위
+   * 문법을 만들지 않고 기존 /roll 흐름·파서를 그대로 재사용한다). */
+  function rollAbility(mod: number): void {
+    setChatText(`/roll 1d20${mod === 0 ? "" : fmtMod(mod)}`);
+  }
 
   // DM 전용 조작 실패(예: 잠긴 토큰을 억지로 옮기려는 다른 창) 등 error가 올 때마다 캔버스를
   // 서버 상태로 강제 재동기화한다 — 조용히 수렴(§6)하되, 드래그 프리뷰가 잘못된 위치에
@@ -108,7 +195,7 @@ export function TableScreen({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", height: "80vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", minHeight: "80vh" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
           <h2 style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-candle)", margin: 0 }}>{room.name}</h2>
@@ -292,6 +379,159 @@ export function TableScreen({
             </form>
           </ParchmentPanel>
         </div>
+      </div>
+
+      <div className="hs-table-bottom">
+        <ParchmentPanel style={{ flex: 2 }}>
+          <strong style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-ink)" }}>모험가들</strong>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginTop: "0.5rem" }}>
+            {room.characters.map((c) => {
+              const editable = canEditCharacter(c);
+              const hpPct = c.hpMax > 0 ? Math.max(0, Math.min(100, (c.hpCurrent / c.hpMax) * 100)) : 0;
+              return (
+                <div key={c.id} className="hs-sheet-card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <strong>{c.name}</strong>
+                    <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>
+                      {c.class || "무직"} · {c.ownerDisplayName}
+                    </span>
+                  </div>
+
+                  <div className="hs-sheet-abilities">
+                    {ABILITY_KEYS.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="hs-ability-btn"
+                        onClick={() => rollAbility(c.abilityMods[k])}
+                        title="클릭하면 1d20 굴림이 채팅 입력창에 채워진다"
+                      >
+                        {k.toUpperCase()} {fmtMod(c.abilityMods[k])}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="hs-hp-row">
+                    <div className="hs-hp-bar">
+                      <div className="hs-hp-bar__fill" style={{ width: `${hpPct}%` }} />
+                    </div>
+                    {editable ? (
+                      <form
+                        key={`hp-${c.id}-${c.hpCurrent}-${c.hpMax}`}
+                        className="hs-hp-form"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const fd = new FormData(e.currentTarget);
+                          sendOp("character.hp", {
+                            characterId: c.id,
+                            hpCurrent: Number(fd.get("hpCurrent") || 0),
+                            hpMax: Number(fd.get("hpMax") || 0),
+                          });
+                        }}
+                      >
+                        <input name="hpCurrent" type="number" defaultValue={c.hpCurrent} />
+                        <span>/</span>
+                        <input name="hpMax" type="number" defaultValue={c.hpMax} />
+                        <WoodButton type="submit">HP 적용</WoodButton>
+                      </form>
+                    ) : (
+                      <span>
+                        {c.hpCurrent} / {c.hpMax}
+                      </span>
+                    )}
+                    <span>AC {c.ac}</span>
+                  </div>
+
+                  <div className="hs-status-chips">
+                    {c.status.map((s) => (
+                      <span
+                        key={s}
+                        className="hs-status-chip"
+                        onClick={() =>
+                          editable && sendOp("status.set", { characterId: c.id, status: c.status.filter((x) => x !== s) })
+                        }
+                        style={editable ? { cursor: "pointer" } : undefined}
+                      >
+                        {s}
+                        {editable && " ×"}
+                      </span>
+                    ))}
+                    {editable && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const fd = new FormData(e.currentTarget);
+                          const tag = String(fd.get("tag") ?? "").trim();
+                          if (tag) sendOp("status.set", { characterId: c.id, status: [...c.status, tag] });
+                          e.currentTarget.reset();
+                        }}
+                        style={{ display: "inline-flex" }}
+                      >
+                        <input name="tag" placeholder="+상태" maxLength={20} style={{ width: 70 }} />
+                      </form>
+                    )}
+                  </div>
+
+                  {editable &&
+                    (editingCharacterId === c.id ? (
+                      <CharacterForm
+                        initial={c}
+                        onSubmit={(data) => {
+                          sendOp("character.set", { id: c.id, ...data });
+                          setEditingCharacterId(null);
+                        }}
+                        onCancel={() => setEditingCharacterId(null)}
+                      />
+                    ) : (
+                      <WoodButton onClick={() => setEditingCharacterId(c.id)}>시트 고치기</WoodButton>
+                    ))}
+                </div>
+              );
+            })}
+
+            {selfUserId ? (
+              <CharacterForm onSubmit={(data) => sendOp("character.set", data)} />
+            ) : (
+              <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>가입하면 캐릭터를 만들 수 있어요.</p>
+            )}
+          </div>
+        </ParchmentPanel>
+
+        <ParchmentPanel style={{ flex: 1 }}>
+          <strong style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-ink)" }}>이니셔티브</strong>
+          <div className="hs-initiative-ribbon">
+            {[...room.initiative]
+              .sort((a, b) => b.order - a.order)
+              .map((entry) => (
+                <div key={entry.id} className="hs-initiative-entry">
+                  <span className="hs-initiative-entry__order">{entry.order}</span>
+                  <span>{entry.label}</span>
+                  {selfRole === "dm" && (
+                    <button type="button" onClick={() => sendOp("initiative.remove", { id: entry.id })}>
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
+          {selfRole === "dm" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const label = String(fd.get("label") ?? "").trim();
+                if (!label) return;
+                sendOp("initiative.set", { label, order: Number(fd.get("order") || 0) });
+                e.currentTarget.reset();
+              }}
+              style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", flexWrap: "wrap" }}
+            >
+              <input name="label" placeholder="이름 (예: 고블린)" maxLength={20} style={{ width: 110 }} />
+              <input name="order" type="number" placeholder="순번" style={{ width: 60 }} />
+              <WoodButton type="submit">추가</WoodButton>
+            </form>
+          )}
+        </ParchmentPanel>
       </div>
     </div>
   );

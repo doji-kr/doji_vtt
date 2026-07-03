@@ -89,11 +89,21 @@ interface ClientOp<T> {
 | `dice.roll` | `{ expression: string; secret?: boolean }` | 전원(단, `secret: true`는 DM만) |
 | `chat.say` | `{ text: string; whisperTo?: string }` | 전원 |
 | `ping.place` | `{ x: number; y: number }` | 전원 |
+| `character.set` | `{ id?: string; name: string; class: string; abilityMods: AbilityMods; ac: number; tokenId?: string \| null; hpMax?: number }` | 회원만(`userId` 필수). `id` 없으면 새 캐릭터 생성(생성자가 소유자가 된다, `hpMax`로 시작 HP를 시딩). `id` 있으면 갱신 — 소유자 본인 또는 DM만. 갱신 시 `hpMax`는 무시된다(HP는 `character.hp` 전용) |
+| `character.hp` | `{ characterId: string; hpCurrent: number; hpMax: number }` | 소유자 본인 또는 DM. **절대값**(델타 아님) — 명중→피해 자동 적용 금지(CLAUDE.md §1.6) 원칙상 "몇 대 맞아서 몇 깎였다"는 서버가 계산하지 않고 사람이 숫자를 직접 써넣는다 |
+| `status.set` | `{ characterId: string; status: string[] }` | 소유자 본인 또는 DM. 자유 텍스트 태그 배열(SRD 조건 목록을 그대로 베끼지 않는다) |
+| `initiative.set` | `{ id?: string; label: string; order: number; characterId?: string \| null }` | DM만. `id` 없으면 새 항목 추가, 있으면 갱신(순번 재확정 등) |
+| `initiative.remove` | `{ id: string }` | DM만 |
 
 최소 세트(`table.join token.add token.move token.remove map.set grid.set dice.roll chat.say
 ping.place`)에 `token.lock`을 추가했다 — "DM 잠금 토큰은 플레이어가 못 움직인다"는 DoD 요건을
 표현하려면 잠금 상태를 토글하는 op가 최소 하나 필요하다. `table.join`은 별도 c2s op가 아니라
 WS 연결 자체 + `hello`가 그 역할을 한다(아래 재접속 절차).
+
+**4단계 §2에서 추가된 6종**(`character.set` `character.hp` `status.set` `initiative.set`
+`initiative.remove`)은 5e 라이트 시트·이니셔티브·HP/상태 기능의 실시간판이다. 이니셔티브
+**정렬**(숫자 비교) 자체는 클라이언트가 해도 된다 — §1.6이 금지하는 건 "판정 해석"이지
+"산수"이므로, 서버는 순번만 저장하고 정렬은 순번 리본 UI가 그린다.
 
 ## s2c 이벤트
 
@@ -125,6 +135,8 @@ interface RoomState {
   tokens: Token[];
   participants: { nickname: string; role: "dm" | "player"; connected: boolean }[];
   log: LogEntry[]; // 최근 채팅+굴림, 최대 100개
+  characters: Character[]; // 4단계 §2
+  initiative: InitiativeEntry[]; // 4단계 §2
 }
 
 interface Token {
@@ -135,6 +147,33 @@ interface Token {
   y: number; // 그리드 셀 좌표(소수 허용 — 드래그 중 프리뷰용, 확정 시 정수로 스냅)
   colorSeed: string; // 결정적 팔레트 링 컬러 시드
   locked: boolean;
+}
+
+// 4단계 §2: 5e 라이트 시트 — 전체 스탯블록/주문 목록이 아니라 능력치 수정치만.
+interface AbilityMods {
+  str: number; dex: number; con: number; int: number; wis: number; cha: number;
+}
+
+interface Character {
+  id: string;
+  ownerUserId: string; // NOT NULL — 게스트는 캐릭터를 만들 수 없다
+  ownerDisplayName: string;
+  tokenId: string | null; // 시트만 먼저 만들고 토큰은 나중에 놓을 수 있다
+  name: string;
+  class: string;
+  abilityMods: AbilityMods;
+  hpCurrent: number;
+  hpMax: number;
+  ac: number;
+  status: string[]; // 자유 텍스트 조건 태그
+  updatedAt: string;
+}
+
+interface InitiativeEntry {
+  id: string;
+  label: string;
+  order: number; // 숫자 비교로 정렬(내림차순) — 정렬 자체는 산수라 기계가 해도 된다
+  characterId: string | null; // 캐릭터 시트와 느슨하게 연결, NPC/몬스터는 null
 }
 
 type LogEntry =
@@ -173,6 +212,9 @@ type LogEntry =
 | `dice.roll` (공개) | ✅ | ✅ |
 | `dice.roll` (`secret: true`) | ✅ | ❌ — 시도하면 `error` |
 | `chat.say` / `ping.place` | ✅ | ✅ |
+| `character.set` (생성) | ✅(회원) | ✅(회원만 — 게스트는 `error account_required`) |
+| `character.set` (갱신) / `character.hp` / `status.set` | ✅ (모든 캐릭터) | ✅ (자기 소유 캐릭터만) |
+| `initiative.set` / `initiative.remove` | ✅ | ❌ — 시도하면 `error forbidden` |
 
 위반 시 `error` 이벤트로 응답하고 **연결은 유지**한다(끊지 않음 — DoD 요건).
 

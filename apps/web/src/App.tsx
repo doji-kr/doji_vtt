@@ -140,7 +140,12 @@ export function App() {
       {view.name === "tables" && <TablesScreen onEnterTable={goToTable} onBackToLibrary={goToLibrary} />}
       {view.name === "invite" && <JoinByInvite token={view.token} onResolved={replaceToTable} />}
       {view.name === "table" && displayName && (
-        <TableScreen tableId={view.tableId} selfNickname={displayName} onExit={goToTables} />
+        <TableScreen
+          tableId={view.tableId}
+          selfNickname={displayName}
+          selfUserId={session?.kind === "member" ? session.userId : null}
+          onExit={goToTables}
+        />
       )}
       {view.name === "play" && (
         <PlayScreen

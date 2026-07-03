@@ -20,6 +20,7 @@ export interface TableRow {
 export interface PersistedRoomState {
   tokens: RoomState["tokens"];
   log: RoomState["log"];
+  initiative: RoomState["initiative"];
 }
 
 const SELECT_WITH_OWNER = `

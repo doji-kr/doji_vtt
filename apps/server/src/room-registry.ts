@@ -3,8 +3,27 @@ import type Database from "better-sqlite3";
 import type { WebSocket } from "ws";
 import { parseDiceExpression, rollDice } from "./dice.js";
 import { getTable, saveTableSnapshot, type TableRow } from "./table-store.js";
+import {
+  insertCharacter,
+  listCharactersByTable,
+  rowToCharacter,
+  updateCharacterFields,
+  updateCharacterHp,
+  updateCharacterStatus,
+} from "./character-store.js";
 import { clientOpSchema } from "./table-protocol.js";
-import type { ClientOp, ErrorEnvelope, Grid, LogEntry, Participant, RoomState, ServerEnvelope, Token } from "./table-protocol.js";
+import type {
+  Character,
+  ClientOp,
+  ErrorEnvelope,
+  Grid,
+  InitiativeEntry,
+  LogEntry,
+  Participant,
+  RoomState,
+  ServerEnvelope,
+  Token,
+} from "./table-protocol.js";
 
 const LOG_CAP = 100;
 const SAVE_INTERVAL_MS = 3000;
@@ -42,6 +61,8 @@ export class LiveRoom {
   private mapPath: string | null;
   private tokens: Token[];
   private log: LogEntry[];
+  private characters: Character[];
+  private initiative: InitiativeEntry[];
   private participants: Map<string, Participant> = new Map();
   private connections: Set<Connection> = new Set();
   private seq: number;
@@ -60,9 +81,11 @@ export class LiveRoom {
     this.ownerNickname = row.owner_display_name;
     this.mapPath = row.map_path;
     this.grid = JSON.parse(row.grid_json);
-    const persisted = JSON.parse(row.state_json) as { tokens: Token[]; log: LogEntry[] };
+    const persisted = JSON.parse(row.state_json) as { tokens: Token[]; log: LogEntry[]; initiative?: InitiativeEntry[] };
     this.tokens = persisted.tokens;
     this.log = persisted.log;
+    this.initiative = persisted.initiative ?? [];
+    this.characters = listCharactersByTable(db, row.id).map(rowToCharacter);
     this.seq = row.last_seq;
 
     this.saveTimer = setInterval(() => this.flush(), SAVE_INTERVAL_MS);
@@ -77,7 +100,13 @@ export class LiveRoom {
 
   private flush(): void {
     if (!this.dirty) return;
-    saveTableSnapshot(this.db, this.id, this.grid, { tokens: this.tokens, log: this.log }, this.seq);
+    saveTableSnapshot(
+      this.db,
+      this.id,
+      this.grid,
+      { tokens: this.tokens, log: this.log, initiative: this.initiative },
+      this.seq,
+    );
     this.dirty = false;
   }
 
@@ -110,6 +139,8 @@ export class LiveRoom {
       tokens: this.tokens,
       participants: [...this.participants.values()],
       log: logForRole(this.log, role),
+      characters: this.characters,
+      initiative: this.initiative,
     };
   }
 
@@ -274,6 +305,94 @@ export class LiveRoom {
       }
       case "ping.place": {
         this.broadcast("ping.place", op.payload, conn.nickname);
+        return;
+      }
+      case "character.set": {
+        if (op.payload.id === undefined) {
+          if (conn.userId === null) {
+            return void sendError(conn.socket, "account_required", "게스트는 캐릭터 시트를 만들 수 없다.");
+          }
+          const hpMax = op.payload.hpMax ?? 0;
+          const row = insertCharacter(
+            this.db,
+            randomUUID(),
+            this.id,
+            conn.userId,
+            op.payload.name,
+            op.payload.class,
+            op.payload.abilityMods,
+            op.payload.ac,
+            hpMax,
+          );
+          const character = rowToCharacter(row);
+          this.characters.push(character);
+          this.broadcast("character.set", character, conn.nickname);
+          return;
+        }
+        const existing = this.characters.find((c) => c.id === op.payload.id);
+        if (!existing) return void sendError(conn.socket, "not_found", "그런 캐릭터가 없다.");
+        if (existing.ownerUserId !== conn.userId && conn.role !== "dm") {
+          return void sendError(conn.socket, "forbidden", "남의 캐릭터 시트는 고칠 수 없다.");
+        }
+        const row = updateCharacterFields(this.db, existing.id, {
+          name: op.payload.name,
+          class: op.payload.class,
+          abilityMods: op.payload.abilityMods,
+          ac: op.payload.ac,
+          tokenId: op.payload.tokenId ?? existing.tokenId,
+        });
+        const character = rowToCharacter(row);
+        this.characters = this.characters.map((c) => (c.id === character.id ? character : c));
+        this.broadcast("character.set", character, conn.nickname);
+        return;
+      }
+      case "character.hp": {
+        const existing = this.characters.find((c) => c.id === op.payload.characterId);
+        if (!existing) return void sendError(conn.socket, "not_found", "그런 캐릭터가 없다.");
+        if (existing.ownerUserId !== conn.userId && conn.role !== "dm") {
+          return void sendError(conn.socket, "forbidden", "남의 HP는 고칠 수 없다.");
+        }
+        const row = updateCharacterHp(this.db, existing.id, op.payload.hpCurrent, op.payload.hpMax);
+        const character = rowToCharacter(row);
+        this.characters = this.characters.map((c) => (c.id === character.id ? character : c));
+        this.broadcast(
+          "character.hp",
+          { characterId: character.id, hpCurrent: character.hpCurrent, hpMax: character.hpMax },
+          conn.nickname,
+        );
+        return;
+      }
+      case "status.set": {
+        const existing = this.characters.find((c) => c.id === op.payload.characterId);
+        if (!existing) return void sendError(conn.socket, "not_found", "그런 캐릭터가 없다.");
+        if (existing.ownerUserId !== conn.userId && conn.role !== "dm") {
+          return void sendError(conn.socket, "forbidden", "남의 상태는 고칠 수 없다.");
+        }
+        const row = updateCharacterStatus(this.db, existing.id, op.payload.status);
+        const character = rowToCharacter(row);
+        this.characters = this.characters.map((c) => (c.id === character.id ? character : c));
+        this.broadcast("status.set", { characterId: character.id, status: character.status }, conn.nickname);
+        return;
+      }
+      case "initiative.set": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 이니셔티브를 정할 수 있다.");
+        const id = op.payload.id ?? randomUUID();
+        const entry: InitiativeEntry = {
+          id,
+          label: op.payload.label,
+          order: op.payload.order,
+          characterId: op.payload.characterId ?? null,
+        };
+        const idx = this.initiative.findIndex((e) => e.id === id);
+        if (idx === -1) this.initiative.push(entry);
+        else this.initiative[idx] = entry;
+        this.broadcast("initiative.set", entry, conn.nickname);
+        return;
+      }
+      case "initiative.remove": {
+        if (conn.role !== "dm") return void sendError(conn.socket, "forbidden", "DM만 이니셔티브를 지울 수 있다.");
+        this.initiative = this.initiative.filter((e) => e.id !== op.payload.id);
+        this.broadcast("initiative.remove", { id: op.payload.id }, conn.nickname);
         return;
       }
     }

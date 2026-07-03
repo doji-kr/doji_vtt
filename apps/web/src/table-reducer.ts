@@ -46,6 +46,37 @@ export interface Participant {
   connected: boolean;
 }
 
+export interface AbilityMods {
+  str: number;
+  dex: number;
+  con: number;
+  int: number;
+  wis: number;
+  cha: number;
+}
+
+export interface Character {
+  id: string;
+  ownerUserId: string;
+  ownerDisplayName: string;
+  tokenId: string | null;
+  name: string;
+  class: string;
+  abilityMods: AbilityMods;
+  hpCurrent: number;
+  hpMax: number;
+  ac: number;
+  status: string[];
+  updatedAt: string;
+}
+
+export interface InitiativeEntry {
+  id: string;
+  label: string;
+  order: number;
+  characterId: string | null;
+}
+
 export interface RoomState {
   name: string;
   ownerNickname: string;
@@ -54,6 +85,8 @@ export interface RoomState {
   tokens: Token[];
   participants: Participant[];
   log: LogEntry[];
+  characters: Character[];
+  initiative: InitiativeEntry[];
 }
 
 export interface Ping {
@@ -195,6 +228,44 @@ export function applyServerMessage(
       const ping: Ping = { id: `${now}-${Math.random().toString(36).slice(2)}`, x, y, actor: msg.actor ?? "system", at: now };
       const pings = [...state.pings, ping].slice(-PING_CAP);
       return { ...state, pings, seq: msg.seq ?? state.seq };
+    }
+    case "character.set": {
+      if (!state.room) return state;
+      const character = payloadAs<Character>(msg);
+      const idx = state.room.characters.findIndex((c) => c.id === character.id);
+      const characters =
+        idx === -1
+          ? [...state.room.characters, character]
+          : state.room.characters.map((c) => (c.id === character.id ? character : c));
+      return { ...state, room: { ...state.room, characters }, seq: msg.seq ?? state.seq };
+    }
+    case "character.hp": {
+      if (!state.room) return state;
+      const { characterId, hpCurrent, hpMax } = payloadAs<{ characterId: string; hpCurrent: number; hpMax: number }>(msg);
+      const characters = state.room.characters.map((c) => (c.id === characterId ? { ...c, hpCurrent, hpMax } : c));
+      return { ...state, room: { ...state.room, characters }, seq: msg.seq ?? state.seq };
+    }
+    case "status.set": {
+      if (!state.room) return state;
+      const { characterId, status } = payloadAs<{ characterId: string; status: string[] }>(msg);
+      const characters = state.room.characters.map((c) => (c.id === characterId ? { ...c, status } : c));
+      return { ...state, room: { ...state.room, characters }, seq: msg.seq ?? state.seq };
+    }
+    case "initiative.set": {
+      if (!state.room) return state;
+      const entry = payloadAs<InitiativeEntry>(msg);
+      const idx = state.room.initiative.findIndex((e) => e.id === entry.id);
+      const initiative =
+        idx === -1
+          ? [...state.room.initiative, entry]
+          : state.room.initiative.map((e) => (e.id === entry.id ? entry : e));
+      return { ...state, room: { ...state.room, initiative }, seq: msg.seq ?? state.seq };
+    }
+    case "initiative.remove": {
+      if (!state.room) return state;
+      const { id } = payloadAs<{ id: string }>(msg);
+      const initiative = state.room.initiative.filter((e) => e.id !== id);
+      return { ...state, room: { ...state.room, initiative }, seq: msg.seq ?? state.seq };
     }
     default:
       return state;

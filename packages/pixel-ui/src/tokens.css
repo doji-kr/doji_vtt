@@ -279,6 +279,112 @@
   color: var(--hs-ink);
 }
 
+/* ── 5e 라이트 시트 · 이니셔티브 (4단계 §2) ── */
+.hs-table-bottom {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.hs-sheet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--hs-wood-edge);
+}
+.hs-sheet-abilities {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.hs-ability-btn {
+  font-family: var(--hs-font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--hs-wood);
+  color: var(--hs-parchment);
+  border: 1px solid var(--hs-wood-edge);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+}
+.hs-ability-btn:hover {
+  background: var(--hs-candle);
+  color: var(--hs-char);
+}
+.hs-hp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.hs-hp-bar {
+  width: 90px;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--hs-ember);
+  opacity: 0.35;
+  overflow: hidden;
+  flex: none;
+  position: relative;
+}
+.hs-hp-bar__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--hs-sage);
+  opacity: 1;
+}
+.hs-hp-form {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.hs-hp-form input {
+  width: 3rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--hs-wood-edge);
+  background: var(--hs-parchment);
+  color: var(--hs-ink);
+}
+.hs-status-chips {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.hs-status-chip {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: var(--hs-moon);
+  color: var(--hs-char);
+}
+.hs-initiative-ribbon {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+.hs-initiative-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+}
+.hs-initiative-entry__order {
+  font-family: var(--hs-font-pixel);
+  color: var(--hs-candle);
+  min-width: 1.5rem;
+  text-align: center;
+}
+
 /* ── EndingCard ── */
 .hs-ending-card {
   text-align: center;

@@ -14,7 +14,11 @@ const baseRoom: RoomState = {
   tokens: [],
   participants: [{ nickname: "DM닉", role: "dm", connected: true }],
   log: [],
+  characters: [],
+  initiative: [],
 };
+
+const zeroMods = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
 
 function snapshot(overrides: Partial<RoomState> = {}, seq = 3): ServerMessage {
   return { type: "state.snapshot", payload: { ...baseRoom, ...overrides, seq } };
@@ -132,5 +136,68 @@ describe("applyServerMessage", () => {
   it("room이 아직 없으면(스냅샷 전) 델타 이벤트는 무시된다", () => {
     const s = applyServerMessage(initialTableClientState, { type: "token.move", payload: { tokenId: "x", x: 1, y: 1 }, seq: 1 }, "DM닉");
     expect(s.room).toBeNull();
+  });
+
+  it("character.set으로 캐릭터가 생성/갱신되고, character.hp·status.set이 반영된다", () => {
+    let s = applyServerMessage(initialTableClientState, snapshot(), "플레이어닉");
+    const character = {
+      id: "c1",
+      ownerUserId: "u1",
+      ownerDisplayName: "플레이어닉",
+      tokenId: null,
+      name: "아리아",
+      class: "로그",
+      abilityMods: zeroMods,
+      hpCurrent: 10,
+      hpMax: 10,
+      ac: 14,
+      status: [],
+      updatedAt: "now",
+    };
+    s = applyServerMessage(s, { type: "character.set", payload: character, seq: 4 }, "플레이어닉");
+    expect(s.room?.characters).toHaveLength(1);
+
+    s = applyServerMessage(
+      s,
+      { type: "character.set", payload: { ...character, class: "로그(도적단)" }, seq: 5 },
+      "플레이어닉",
+    );
+    expect(s.room?.characters).toHaveLength(1);
+    expect(s.room?.characters[0]?.class).toBe("로그(도적단)");
+
+    s = applyServerMessage(
+      s,
+      { type: "character.hp", payload: { characterId: "c1", hpCurrent: 3, hpMax: 10 }, seq: 6 },
+      "플레이어닉",
+    );
+    expect(s.room?.characters[0]).toMatchObject({ hpCurrent: 3, hpMax: 10 });
+
+    s = applyServerMessage(
+      s,
+      { type: "status.set", payload: { characterId: "c1", status: ["poisoned"] }, seq: 7 },
+      "플레이어닉",
+    );
+    expect(s.room?.characters[0]?.status).toEqual(["poisoned"]);
+  });
+
+  it("initiative.set으로 항목이 추가/갱신되고 initiative.remove로 지워진다", () => {
+    let s = applyServerMessage(initialTableClientState, snapshot(), "DM닉");
+    s = applyServerMessage(
+      s,
+      { type: "initiative.set", payload: { id: "i1", label: "고블린", order: 12, characterId: null }, seq: 4 },
+      "DM닉",
+    );
+    expect(s.room?.initiative).toHaveLength(1);
+
+    s = applyServerMessage(
+      s,
+      { type: "initiative.set", payload: { id: "i1", label: "고블린", order: 18, characterId: null }, seq: 5 },
+      "DM닉",
+    );
+    expect(s.room?.initiative).toHaveLength(1);
+    expect(s.room?.initiative[0]?.order).toBe(18);
+
+    s = applyServerMessage(s, { type: "initiative.remove", payload: { id: "i1" }, seq: 6 }, "DM닉");
+    expect(s.room?.initiative).toHaveLength(0);
   });
 });

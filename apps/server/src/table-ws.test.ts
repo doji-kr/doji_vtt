@@ -341,13 +341,184 @@ describe("실시간 테이블 WS", () => {
       await onceOpen(guestWs);
       send(guestWs, "hello", {});
       const snapshot = await waitFor(guestWs, (m) => m.type === "state.snapshot");
-      const self = snapshot.payload.participants.find((p: { nickname: string }) => p.nickname === "동명이인" && p.connected);
+      const self = snapshot.payload.participants.find(
+        (p: { nickname: string; connected: boolean }) => p.nickname === "동명이인" && p.connected,
+      );
       // 게스트가 DM 전용 op를 시도하면 거부되는 것으로 role이 player임을 증명한다
       send(guestWs, "map.set", { path: "/uploads/x.png" });
       const err = await waitFor(guestWs, (m) => m.type === "error");
       expect(err.payload.code).toBe("forbidden");
       expect(self).toBeDefined();
       guestWs.close();
+    });
+  });
+
+  describe("5e 라이트 시트 · 이니셔티브 · HP/상태", () => {
+    it("회원이 캐릭터를 만들고 갱신하면 양쪽 소켓에 반영된다", async () => {
+      const dmCookie = await registerMember(base, "DM시트1");
+      const playerCookie = await registerMember(base, "플레이어시트1");
+      const table = await createTable(base, dmCookie, "시트 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+
+      // 두 소켓 모두 리스너를 먼저 걸어둔 다음 보낸다 — 브로드캐스트가 두 소켓에 거의
+      // 동시에 도착하므로, send 이후에 순차로 waitFor를 걸면 두 번째 소켓의 메시지를
+      // 이미 놓친 뒤일 수 있다(레이스).
+      const createdOnPlayerP = waitFor(playerWs, (m) => m.type === "character.set");
+      const createdOnDmP = waitFor(dmWs, (m) => m.type === "character.set");
+      send(playerWs, "character.set", {
+        name: "아리아",
+        class: "로그",
+        abilityMods: { str: 0, dex: 3, con: 1, int: 0, wis: 1, cha: 0 },
+        ac: 14,
+        hpMax: 18,
+      });
+      const [createdOnPlayer, createdOnDm] = await Promise.all([createdOnPlayerP, createdOnDmP]);
+      expect(createdOnPlayer.payload.id).toBe(createdOnDm.payload.id);
+      expect(createdOnPlayer.payload.ownerDisplayName).toBe("플레이어시트1");
+      expect(createdOnPlayer.payload.hpCurrent).toBe(18);
+      expect(createdOnPlayer.payload.hpMax).toBe(18);
+      const characterId = createdOnPlayer.payload.id as string;
+
+      const updatedP = waitFor(dmWs, (m) => m.type === "character.set" && m.payload.ac === 15);
+      send(playerWs, "character.set", {
+        id: characterId,
+        name: "아리아",
+        class: "로그(도적단)",
+        abilityMods: { str: 0, dex: 3, con: 1, int: 0, wis: 1, cha: 0 },
+        ac: 15,
+      });
+      const updated = await updatedP;
+      expect(updated.payload.class).toBe("로그(도적단)");
+      expect(updated.payload.hpCurrent).toBe(18); // hpMax는 갱신 시 무시된다 — character.hp 몫
+
+      dmWs.close();
+      playerWs.close();
+    });
+
+    it("게스트는 캐릭터 시트를 만들 수 없다", async () => {
+      const dmCookie = await registerMember(base, "DM시트2");
+      const table = await createTable(base, dmCookie, "게스트 시트 거부 방");
+      const guestCookie = await login(base, "구경꾼");
+
+      const guestWs = connectWs(base, table.id, guestCookie);
+      await onceOpen(guestWs);
+      send(guestWs, "character.set", {
+        name: "몰래만든캐릭터",
+        class: "도적",
+        abilityMods: { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 },
+        ac: 10,
+      });
+      const err = await waitFor(guestWs, (m) => m.type === "error");
+      expect(err.payload.code).toBe("account_required");
+      guestWs.close();
+    });
+
+    it("남의 캐릭터 시트는 못 고치지만 DM은 HP/상태를 조정할 수 있다", async () => {
+      const dmCookie = await registerMember(base, "DM시트3");
+      const playerCookie = await registerMember(base, "플레이어시트3");
+      const otherCookie = await registerMember(base, "제3자시트3");
+      const table = await createTable(base, dmCookie, "권한 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+      const otherWs = connectWs(base, table.id, otherCookie);
+      await onceOpen(otherWs);
+
+      const createdOnPlayerP = waitFor(playerWs, (m) => m.type === "character.set");
+      const createdOnDmP = waitFor(dmWs, (m) => m.type === "character.set");
+      const createdOnOtherP = waitFor(otherWs, (m) => m.type === "character.set");
+      send(playerWs, "character.set", {
+        name: "브룬",
+        class: "전사",
+        abilityMods: { str: 3, dex: 0, con: 2, int: 0, wis: 0, cha: 0 },
+        ac: 16,
+        hpMax: 20,
+      });
+      const [created] = await Promise.all([createdOnPlayerP, createdOnDmP, createdOnOtherP]);
+      const characterId = created.payload.id as string;
+
+      // 제3자(플레이어, 소유자 아님)가 남의 HP를 고치려 하면 거부된다
+      send(otherWs, "character.hp", { characterId, hpCurrent: 1, hpMax: 20 });
+      const forbidden = await waitFor(otherWs, (m) => m.type === "error");
+      expect(forbidden.payload.code).toBe("forbidden");
+
+      // DM은 소유자가 아니어도 전투 중 HP를 조정할 수 있다
+      const hpOnPlayerP = waitFor(playerWs, (m) => m.type === "character.hp");
+      send(dmWs, "character.hp", { characterId, hpCurrent: 7, hpMax: 20 });
+      const hpOnPlayer = await hpOnPlayerP;
+      expect(hpOnPlayer.payload).toEqual({ characterId, hpCurrent: 7, hpMax: 20 });
+
+      // DM이 상태 태그도 붙일 수 있다
+      const statusOnPlayerP = waitFor(playerWs, (m) => m.type === "status.set");
+      send(dmWs, "status.set", { characterId, status: ["poisoned"] });
+      const statusOnPlayer = await statusOnPlayerP;
+      expect(statusOnPlayer.payload).toEqual({ characterId, status: ["poisoned"] });
+
+      dmWs.close();
+      playerWs.close();
+      otherWs.close();
+    });
+
+    it("이니셔티브는 DM만 정할 수 있다 — 플레이어가 시도하면 거부된다", async () => {
+      const dmCookie = await registerMember(base, "DM이니1");
+      const playerCookie = await registerMember(base, "플레이어이니1");
+      const table = await createTable(base, dmCookie, "이니셔티브 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+
+      send(playerWs, "initiative.set", { label: "플레이어이니1", order: 15 });
+      const err = await waitFor(playerWs, (m) => m.type === "error");
+      expect(err.payload.code).toBe("forbidden");
+
+      send(dmWs, "initiative.set", { label: "고블린", order: 12 });
+      const added = await waitFor(playerWs, (m) => m.type === "initiative.set");
+      expect(added.payload.label).toBe("고블린");
+      const entryId = added.payload.id as string;
+
+      send(dmWs, "initiative.remove", { id: entryId });
+      const removed = await waitFor(playerWs, (m) => m.type === "initiative.remove");
+      expect(removed.payload).toEqual({ id: entryId });
+
+      dmWs.close();
+      playerWs.close();
+    });
+
+    it("재접속(새 소켓)해도 캐릭터·이니셔티브가 스냅샷에 남아있다", async () => {
+      const dmCookie = await registerMember(base, "DM시트복원");
+      const table = await createTable(base, dmCookie, "복원 테스트 방");
+
+      const dmWs1 = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs1);
+      send(dmWs1, "character.set", {
+        name: "DM 캐릭터",
+        class: "성직자",
+        abilityMods: { str: 0, dex: 0, con: 1, int: 0, wis: 2, cha: 0 },
+        ac: 17,
+        hpMax: 22,
+      });
+      await waitFor(dmWs1, (m) => m.type === "character.set");
+      send(dmWs1, "initiative.set", { label: "오크", order: 9 });
+      await waitFor(dmWs1, (m) => m.type === "initiative.set");
+      dmWs1.close();
+
+      const dmWs2 = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs2);
+      send(dmWs2, "hello", {});
+      const snapshot = await waitFor(dmWs2, (m) => m.type === "state.snapshot");
+      expect(snapshot.payload.characters).toHaveLength(1);
+      expect(snapshot.payload.characters[0].name).toBe("DM 캐릭터");
+      expect(snapshot.payload.initiative).toHaveLength(1);
+      expect(snapshot.payload.initiative[0].label).toBe("오크");
+      dmWs2.close();
     });
   });
 });

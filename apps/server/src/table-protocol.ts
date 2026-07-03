@@ -47,6 +47,43 @@ export interface Participant {
   connected: boolean;
 }
 
+// ── 4단계 §2: 5e 라이트 시트 · 이니셔티브 ────────────────────
+
+export const abilityModsSchema = z.object({
+  str: z.number().int(),
+  dex: z.number().int(),
+  con: z.number().int(),
+  int: z.number().int(),
+  wis: z.number().int(),
+  cha: z.number().int(),
+});
+export type AbilityMods = z.infer<typeof abilityModsSchema>;
+
+/** owner_user_id NOT NULL을 반영 — 게스트가 만든 캐릭터는 있을 수 없다. */
+export const characterSchema = z.object({
+  id: z.string(),
+  ownerUserId: z.string(),
+  ownerDisplayName: z.string(),
+  tokenId: z.string().nullable(),
+  name: z.string(),
+  class: z.string(),
+  abilityMods: abilityModsSchema,
+  hpCurrent: z.number().int(),
+  hpMax: z.number().int(),
+  ac: z.number().int(),
+  status: z.array(z.string()),
+  updatedAt: z.string(),
+});
+export type Character = z.infer<typeof characterSchema>;
+
+export const initiativeEntrySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  order: z.number(),
+  characterId: z.string().nullable(),
+});
+export type InitiativeEntry = z.infer<typeof initiativeEntrySchema>;
+
 export interface RoomState {
   name: string;
   ownerNickname: string;
@@ -55,6 +92,8 @@ export interface RoomState {
   tokens: Token[];
   participants: Participant[];
   log: LogEntry[];
+  characters: Character[];
+  initiative: InitiativeEntry[];
 }
 
 // ── c2s 오퍼레이션 ────────────────────────────────────────
@@ -90,6 +129,44 @@ export const clientOpSchema = z.discriminatedUnion("type", [
     payload: z.object({ text: z.string().min(1).max(2000), whisperTo: z.string().optional() }),
   }),
   z.object({ type: z.literal("ping.place"), payload: z.object({ x: z.number(), y: z.number() }) }),
+  z.object({
+    type: z.literal("character.set"),
+    payload: z.object({
+      id: z.string().optional(),
+      name: z.string().min(1).max(40),
+      class: z.string().max(30),
+      abilityMods: abilityModsSchema,
+      ac: z.number().int().min(0).max(30),
+      tokenId: z.string().nullable().optional(),
+      /** 생성 시에만 쓰인다(id 없을 때) — 시작 HP 시딩용. 갱신 시엔 무시한다(HP는 character.hp 몫). */
+      hpMax: z.number().int().min(1).max(999).optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal("character.hp"),
+    payload: z.object({
+      characterId: z.string(),
+      hpCurrent: z.number().int(),
+      hpMax: z.number().int().min(0),
+    }),
+  }),
+  z.object({
+    type: z.literal("status.set"),
+    payload: z.object({
+      characterId: z.string(),
+      status: z.array(z.string().min(1).max(20)).max(10),
+    }),
+  }),
+  z.object({
+    type: z.literal("initiative.set"),
+    payload: z.object({
+      id: z.string().optional(),
+      label: z.string().min(1).max(20),
+      order: z.number(),
+      characterId: z.string().nullable().optional(),
+    }),
+  }),
+  z.object({ type: z.literal("initiative.remove"), payload: z.object({ id: z.string() }) }),
 ]);
 export type ClientOp = z.infer<typeof clientOpSchema>;
 

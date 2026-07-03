@@ -42,13 +42,34 @@ export function openDb(dataDir: string = config.dataDir): Database.Database {
       invite_token TEXT NOT NULL UNIQUE,
       map_path TEXT,
       grid_json TEXT NOT NULL DEFAULT '{"cellSize":32,"offsetX":0,"offsetY":0}',
-      state_json TEXT NOT NULL DEFAULT '{"tokens":[],"log":[]}',
+      state_json TEXT NOT NULL DEFAULT '{"tokens":[],"log":[],"initiative":[]}',
       last_seq INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tables_owner ON tables(owner_user_id);
     CREATE INDEX IF NOT EXISTS idx_tables_invite ON tables(invite_token);
+
+    -- 4단계 §2: 캐릭터 시트는 owner_user_id NOT NULL — 게스트는 시트를 만들 수 없다
+    -- (PROMPT-stage4.md §2, users 행이 없는 게스트는 이 FK를 만족시킬 수 없다).
+    -- 테이블 범위(캠페인을 넘나드는 휴대용 캐릭터는 다음 단계 몫). token_id는 토큰과
+    -- 느슨하게 연결하되 NULL 허용(시트만 먼저 만들고 토큰은 나중에 놓을 수 있게).
+    CREATE TABLE IF NOT EXISTS characters (
+      id TEXT PRIMARY KEY,
+      table_id TEXT NOT NULL REFERENCES tables(id),
+      token_id TEXT,
+      owner_user_id TEXT NOT NULL REFERENCES users(id),
+      name TEXT NOT NULL,
+      class TEXT NOT NULL DEFAULT '',
+      ability_mods_json TEXT NOT NULL DEFAULT '{"str":0,"dex":0,"con":0,"int":0,"wis":0,"cha":0}',
+      hp_current INTEGER NOT NULL DEFAULT 0,
+      hp_max INTEGER NOT NULL DEFAULT 0,
+      ac INTEGER NOT NULL DEFAULT 10,
+      status_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_characters_table ON characters(table_id);
+    CREATE INDEX IF NOT EXISTS idx_characters_owner ON characters(owner_user_id);
   `);
   return db;
 }
