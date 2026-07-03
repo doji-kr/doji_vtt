@@ -41,8 +41,12 @@ export function LibraryScreen({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <WoodButton onClick={onGoToTables}>라이브 테이블로</WoodButton>
+      {/* 4단계 §1: 이중 프로필의 최소 진입점 — "모험가 수첩"(이 화면, 내 플레이)과
+          "이야기꾼의 서재"(내가 만든 라이브 테이블)를 구분해서 보여준다. 완전히 분리된
+          대시보드는 v0.5 나머지(스튜디오 에디터) 몫이라 손대지 않는다. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-candle)", margin: 0 }}>모험가 수첩</h2>
+        <WoodButton onClick={onGoToTables}>이야기꾼의 서재로 (라이브 테이블)</WoodButton>
       </div>
 
       {inProgress.length > 0 && (

@@ -9,6 +9,8 @@ import { config } from "./config.js";
 import { openDb } from "./db.js";
 import { loadModuleRegistry } from "./module-registry.js";
 import { RoomRegistry } from "./room-registry.js";
+import { makeRequireSession } from "./session.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 import { registerModuleRoutes } from "./routes/modules.js";
 import { registerPlayRoutes } from "./routes/plays.js";
 import { registerSessionRoutes } from "./routes/session.js";
@@ -75,11 +77,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     });
   }
 
-  registerSessionRoutes(app);
+  const requireSession = makeRequireSession(db);
+
+  registerSessionRoutes(app, requireSession);
+  registerAuthRoutes(app, db);
   registerModuleRoutes(app, registry);
-  registerPlayRoutes(app, db, registry);
-  registerTableRoutes(app, db, dataDir);
-  registerTableWsRoute(app, rooms);
+  registerPlayRoutes(app, db, registry, requireSession);
+  registerTableRoutes(app, db, dataDir, requireSession);
+  registerTableWsRoute(app, rooms, requireSession);
 
   app.addHook("onClose", (_instance, done) => {
     rooms.destroy();

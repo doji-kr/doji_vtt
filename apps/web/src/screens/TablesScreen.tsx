@@ -47,8 +47,8 @@ export function TablesScreen({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", maxWidth: 640, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-candle)", margin: 0 }}>라이브 테이블</h2>
-        <WoodButton onClick={onBackToLibrary}>서가로</WoodButton>
+        <h2 style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-candle)", margin: 0 }}>이야기꾼의 서재</h2>
+        <WoodButton onClick={onBackToLibrary}>모험가 수첩으로</WoodButton>
       </div>
 
       <ParchmentPanel>

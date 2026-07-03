@@ -1,10 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type Database from "better-sqlite3";
 import { z } from "zod";
-import { requireSession } from "../session.js";
 import { getTable, getTableByInviteToken, insertTable, listTablesByOwner, setTableMapPath } from "../table-store.js";
 
 const MAP_MAX_BYTES = 8 * 1024 * 1024;
@@ -14,18 +13,30 @@ const MAP_MIME_WHITELIST: Record<string, string> = {
   "image/webp": ".webp",
 };
 
-export function registerTableRoutes(app: FastifyInstance, db: Database.Database, dataDir: string): void {
+type RequireSession = (request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void) => void;
+
+export function registerTableRoutes(
+  app: FastifyInstance,
+  db: Database.Database,
+  dataDir: string,
+  requireSession: RequireSession,
+): void {
   app.post(
     "/api/tables",
     { preHandler: requireSession },
     async (request, reply) => {
+      // 테이블 생성(=DM이 되기)은 회원 계정 전용이다 — 게스트는 userId가 없으므로 여기서
+      // 걸러진다(PROMPT-stage4.md §1, "게스트는 시트를 못 만든다"와 같은 원칙의 테이블판).
+      if (!request.userId) {
+        return reply.code(403).send({ error: "account_required", message: "테이블을 열려면 먼저 회원가입/로그인이 필요하다." });
+      }
       const parsed = z.object({ name: z.string().trim().min(1).max(60) }).safeParse(request.body);
       if (!parsed.success) {
         return reply.code(400).send({ error: "invalid_body", message: "방 이름을 확인해달라 (1~60자)." });
       }
       const id = randomUUID();
       const inviteToken = randomBytes(12).toString("base64url");
-      const row = insertTable(db, id, parsed.data.name, request.nickname!, inviteToken);
+      const row = insertTable(db, id, parsed.data.name, request.userId, inviteToken);
       return reply.code(201).send({ id: row.id, name: row.name, invite_token: row.invite_token });
     },
   );
@@ -33,8 +44,11 @@ export function registerTableRoutes(app: FastifyInstance, db: Database.Database,
   app.get(
     "/api/tables",
     { preHandler: requireSession },
-    async (request) => {
-      const rows = listTablesByOwner(db, request.nickname!);
+    async (request, reply) => {
+      if (!request.userId) {
+        return reply.code(403).send({ error: "account_required", message: "이야기꾼의 서재는 회원만 볼 수 있다." });
+      }
+      const rows = listTablesByOwner(db, request.userId);
       return rows.map((r) => ({ id: r.id, name: r.name, invite_token: r.invite_token, updated_at: r.updated_at }));
     },
   );
@@ -48,8 +62,8 @@ export function registerTableRoutes(app: FastifyInstance, db: Database.Database,
       return {
         id: row.id,
         name: row.name,
-        ownerNickname: row.owner_nickname,
-        isOwner: row.owner_nickname === request.nickname,
+        ownerNickname: row.owner_display_name,
+        isOwner: row.owner_user_id === request.userId,
       };
     },
   );
@@ -70,7 +84,7 @@ export function registerTableRoutes(app: FastifyInstance, db: Database.Database,
     async (request, reply) => {
       const row = getTable(db, request.params.id);
       if (!row) return reply.code(404).send({ error: "not_found", message: "그런 테이블이 없다." });
-      if (row.owner_nickname !== request.nickname) {
+      if (row.owner_user_id !== request.userId) {
         return reply.code(403).send({ error: "forbidden", message: "DM만 지도를 올릴 수 있다." });
       }
 

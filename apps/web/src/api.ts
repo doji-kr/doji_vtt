@@ -39,6 +39,12 @@ export interface TableDetail {
   isOwner: boolean;
 }
 
+/** 4단계 §1: 계정 본편. 회원(kind:"member")과 게스트(kind:"guest")가 공존한다 — 어느
+ * 쪽이든 표시 이름은 displayName 하나로 정규화되어 있다. */
+export type SessionInfo =
+  | { kind: "member"; userId: string; username: string; displayName: string }
+  | { kind: "guest"; displayName: string };
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -63,10 +69,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   ApiError,
-  login: (inviteCode: string, nickname: string) =>
-    request<{ nickname: string }>("/api/session", {
+  /** 게스트 세션 발급(3단계부터 있던 그대로) — 초대 링크로 들어와 계정 없이 참가할 때 쓴다. */
+  loginGuest: (inviteCode: string, nickname: string) =>
+    request<{ kind: "guest"; displayName: string }>("/api/session", {
       method: "POST",
       body: JSON.stringify({ invite_code: inviteCode, nickname }),
+    }),
+  register: (username: string, password: string, displayName: string, inviteCode: string) =>
+    request<{ kind: "member"; userId: string; username: string; displayName: string }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, password, display_name: displayName, invite_code: inviteCode }),
+    }),
+  loginMember: (username: string, password: string) =>
+    request<{ kind: "member"; userId: string; username: string; displayName: string }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
     }),
   listModules: () => request<ModuleSummary[]>("/api/modules"),
   listMyPlays: () => request<PlaySummary[]>("/api/plays"),
@@ -81,7 +98,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ input }),
     }),
-  whoAmI: () => request<{ nickname: string }>("/api/session"),
+  whoAmI: () => request<SessionInfo>("/api/session"),
   createTable: (name: string) =>
     request<{ id: string; name: string; invite_token: string }>("/api/tables", {
       method: "POST",

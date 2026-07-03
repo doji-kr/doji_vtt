@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type Database from "better-sqlite3";
 import { z } from "zod";
 import { createRun, step } from "@hearthside/runtime";
@@ -7,7 +7,8 @@ import type { Effect, Input } from "@hearthside/runtime";
 import type { ModuleEntry } from "../module-registry.js";
 import { appendInput, getPlay, insertPlay, listPlaysByNickname } from "../play-store.js";
 import { findEmptyChoices, replayToCurrentEffects } from "../replay-effects.js";
-import { requireSession } from "../session.js";
+
+type RequireSession = (request: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void) => void;
 
 const inputSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("continue") }),
@@ -30,7 +31,12 @@ function respondIfSoftLocked(effects: Effect[], reply: FastifyReply): boolean {
   return true;
 }
 
-export function registerPlayRoutes(app: FastifyInstance, db: Database.Database, registry: Map<string, ModuleEntry>): void {
+export function registerPlayRoutes(
+  app: FastifyInstance,
+  db: Database.Database,
+  registry: Map<string, ModuleEntry>,
+  requireSession: RequireSession,
+): void {
   app.post(
     "/api/plays",
     { preHandler: requireSession },

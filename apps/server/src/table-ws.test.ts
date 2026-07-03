@@ -42,6 +42,27 @@ async function login(base: string, nickname: string): Promise<string> {
   return sessionCookie.split(";")[0]!;
 }
 
+/** 테이블을 만드는(=DM이 되는) 쪽은 회원 계정이 필요하다 — 4단계부터 게스트는 방을 못 만든다.
+ * username은 표시 이름과 별개(영문/숫자)라 매번 무관한 값을 만들어 충돌을 피한다. */
+let registerCounter = 0;
+async function registerMember(base: string, displayName: string): Promise<string> {
+  registerCounter += 1;
+  const res = await fetch(`${base}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: `member${registerCounter}`,
+      password: "hunter2pass",
+      display_name: displayName,
+      invite_code: INVITE_CODE,
+    }),
+  });
+  const cookies = res.headers.getSetCookie();
+  const memberCookie = cookies.find((c) => c.startsWith("hs_member="));
+  if (!memberCookie) throw new Error("회원 세션 쿠키를 못 받았다");
+  return memberCookie.split(";")[0]!;
+}
+
 async function createTable(base: string, cookie: string, name: string): Promise<{ id: string; invite_token: string }> {
   const res = await fetch(`${base}/api/tables`, {
     method: "POST",
@@ -106,7 +127,7 @@ describe("실시간 테이블 WS", () => {
   });
 
   it("두 클라이언트가 토큰 이동으로 동기화되고 seq가 단조 증가한다", async () => {
-    const dmCookie = await login(base, "DM닉");
+    const dmCookie = await registerMember(base, "DM닉");
     const playerCookie = await login(base, "플레이어닉");
     const table = await createTable(base, dmCookie, "테스트 방");
 
@@ -138,7 +159,7 @@ describe("실시간 테이블 WS", () => {
   });
 
   it("권한 위반은 error로 응답하고 연결은 유지된다", async () => {
-    const dmCookie = await login(base, "DM닉2");
+    const dmCookie = await registerMember(base, "DM닉2");
     const playerCookie = await login(base, "플레이어닉2");
     const table = await createTable(base, dmCookie, "테스트 방2");
 
@@ -162,7 +183,7 @@ describe("실시간 테이블 WS", () => {
   });
 
   it("잠긴 토큰은 소유자도 움직일 수 없고, 남의 토큰은 아예 움직일 수 없다", async () => {
-    const dmCookie = await login(base, "DM닉3");
+    const dmCookie = await registerMember(base, "DM닉3");
     const playerCookie = await login(base, "플레이어닉3");
     const table = await createTable(base, dmCookie, "테스트 방3");
 
@@ -199,7 +220,7 @@ describe("실시간 테이블 WS", () => {
   });
 
   it("게스트가 초대 링크로 테이블 id를 얻어 입장할 수 있다", async () => {
-    const dmCookie = await login(base, "DM닉4");
+    const dmCookie = await registerMember(base, "DM닉4");
     const table = await createTable(base, dmCookie, "테스트 방4");
 
     const guestCookie = await login(base, "게스트닉4");
@@ -219,7 +240,7 @@ describe("실시간 테이블 WS", () => {
   });
 
   it("재접속(새 소켓)해도 스냅샷으로 방 상태를 복원한다", async () => {
-    const dmCookie = await login(base, "DM닉5");
+    const dmCookie = await registerMember(base, "DM닉5");
     const table = await createTable(base, dmCookie, "테스트 방5");
 
     const dmWs1 = connectWs(base, table.id, dmCookie);
@@ -239,7 +260,7 @@ describe("실시간 테이블 WS", () => {
 
   describe("비밀 굴림 채널 분리", () => {
     it("gm 굴림 결과는 DM 소켓에만 가고 플레이어 소켓에는 절대 안 간다", async () => {
-      const dmCookie = await login(base, "DM닉6");
+      const dmCookie = await registerMember(base, "DM닉6");
       const playerCookie = await login(base, "플레이어닉6");
       const table = await createTable(base, dmCookie, "테스트 방6");
 
@@ -260,7 +281,7 @@ describe("실시간 테이블 WS", () => {
     });
 
     it("플레이어가 secret:true를 시도하면 거부된다", async () => {
-      const dmCookie = await login(base, "DM닉7");
+      const dmCookie = await registerMember(base, "DM닉7");
       const playerCookie = await login(base, "플레이어닉7");
       const table = await createTable(base, dmCookie, "테스트 방7");
 
@@ -278,7 +299,7 @@ describe("실시간 테이블 WS", () => {
     });
 
     it("공개 굴림은 양쪽 다 같은 결과를 받는다", async () => {
-      const dmCookie = await login(base, "DM닉8");
+      const dmCookie = await registerMember(base, "DM닉8");
       const playerCookie = await login(base, "플레이어닉8");
       const table = await createTable(base, dmCookie, "테스트 방8");
 
@@ -295,6 +316,38 @@ describe("실시간 테이블 WS", () => {
 
       dmWs.close();
       playerWs.close();
+    });
+  });
+
+  describe("계정 마이그레이션 — 소유권은 userId로만 판단한다", () => {
+    it("게스트 세션으로는 POST /api/tables가 403이라 테이블 자체를 만들 수 없다", async () => {
+      const guestCookie = await login(base, "방만들려는게스트");
+      const res = await fetch(`${base}/api/tables`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: guestCookie },
+        body: JSON.stringify({ name: "게스트의 방" }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("같은 표시 이름을 쓰더라도 회원이어야 DM role을 받는다 — 게스트는 항상 player", async () => {
+      const dmCookie = await registerMember(base, "동명이인");
+      const table = await createTable(base, dmCookie, "동명이인 테스트 방");
+
+      // 게스트가 DM과 정확히 같은 표시 이름으로 들어와도 role은 player여야 한다
+      // (역할 판단은 nickname 문자열이 아니라 userId로만 한다).
+      const guestCookie = await login(base, "동명이인");
+      const guestWs = connectWs(base, table.id, guestCookie);
+      await onceOpen(guestWs);
+      send(guestWs, "hello", {});
+      const snapshot = await waitFor(guestWs, (m) => m.type === "state.snapshot");
+      const self = snapshot.payload.participants.find((p: { nickname: string }) => p.nickname === "동명이인" && p.connected);
+      // 게스트가 DM 전용 op를 시도하면 거부되는 것으로 role이 player임을 증명한다
+      send(guestWs, "map.set", { path: "/uploads/x.png" });
+      const err = await waitFor(guestWs, (m) => m.type === "error");
+      expect(err.payload.code).toBe("forbidden");
+      expect(self).toBeDefined();
+      guestWs.close();
     });
   });
 });

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm test)",
+      "Bash(pnpm --filter @hearthside/web build)",
+      "Bash(awk *)"
+    ]
+  }
+}

@@ -1,16 +1,51 @@
-# 실시간 프로토콜 v0 — 라이브 테이블
+# 실시간 프로토콜 v1 — 라이브 테이블 + 계정
 
-> 3단계 산출물. 서버 권위: 클라이언트는 op를 "제안"하고, 서버가 검증·순서 부여(seq)·적용 후
-> 브로드캐스트한다. 낙관적 UI는 `token.move` 드래그 프리뷰에만 허용 — 서버 확정치가 오면
-> 조용히 수렴한다(§ CLAUDE.md 6, "조용한 마법").
+> 3단계에서 v0으로 나왔고, 4단계 §1(계정 본편)에서 인증 계약이 바뀌어 v1으로 올린다.
+> 서버 권위 원칙 자체는 그대로다: 클라이언트는 op를 "제안"하고, 서버가 검증·순서 부여(seq)·
+> 적용 후 브로드캐스트한다. 낙관적 UI는 `token.move` 드래그 프리뷰에만 허용 — 서버 확정치가
+> 오면 조용히 수렴한다(§ CLAUDE.md 6, "조용한 마법").
+
+## 인증 (v1 — 4단계 §1에서 새로 생김)
+
+3단계까지 인증은 "닉네임 + 서명 쿠키" 하나뿐이었다 — 진짜 계정이 아니라 자리 표시자였고,
+같은 닉네임을 두 사람이 동시에 못 쓰게 막는 안전판도 없었다. 4단계부터 **두 종류의 서명
+쿠키가 공존**한다:
+
+| 쿠키 | 누가 갖나 | 담는 값 | 발급 엔드포인트 |
+|---|---|---|---|
+| `hs_session` (게스트) | 계정 없이 초대 링크로 참가한 사람 | 표시 이름(nickname) 문자열 | `POST /api/session` (기존 그대로, 폐기 안 함) |
+| `hs_member` (회원) | 회원가입/로그인한 사람 | `user_id` | `POST /api/auth/register`, `POST /api/auth/login` (신규) |
+
+- `POST /api/session { invite_code, nickname }` — 3단계 때 있던 그대로다. 이제부터는
+  "게스트 세션 발급 엔드포인트"라는 이름이 붙는다. 사이트 초대코드(`config.inviteCode`)를
+  여전히 요구한다.
+- `POST /api/auth/register { username, password, display_name, invite_code }` — 회원가입.
+  `username`은 로그인 식별자(영문/숫자/밑줄 3~20자), `display_name`이 화면에 보이는 이름
+  (한글 포함, 예전 nickname의 자리를 잇는다). 비밀번호는 `argon2id`로 해시해 저장한다.
+  사이트 초대코드를 가입 시 1회 요구한다(로그인엔 불필요).
+- `POST /api/auth/login { username, password }` — 로그인.
+- `GET /api/session` — whoAmI. 회원이면
+  `{ kind: "member", userId, username, displayName }`, 게스트면
+  `{ kind: "guest", displayName }`를 돌려준다. 둘 다 없으면 401.
+  (3단계엔 `{ nickname }` 하나만 있었다 — 이 엔드포인트는 계정 계약 자체가 바뀌는 4단계
+  범위 안이라 모양이 달라졌다. scenarios/plays/tables 같은 일반 리소스 API는 형태를
+  유지했다.)
+
+서버 내부적으로 `requireSession`은 회원 쿠키를 먼저 확인하고, 없거나 무효하면 게스트
+쿠키로 폴백한다. **소유권·권한 판단(테이블 생성, 소유 비교)은 반드시 `userId`만 본다** —
+게스트는 애초에 `userId`가 없으므로 자동으로 걸러진다. 표시용 이름이 필요한 코드는
+`displayName ?? guestName`으로 정규화한다.
 
 ## 연결
 
-`GET /ws/tables/:id` (WebSocket 업그레이드). 인증은 2단계에서 쓰는 서명 쿠키(`hs_session`)를
-그대로 재사용한다 — 별도 로그인 절차 없음. 방을 찾을 수 없거나 쿠키가 없으면 업그레이드
-자체를 거부한다(HTTP 레벨 401/404).
+`GET /ws/tables/:id` (WebSocket 업그레이드). 인증은 위 두 쿠키 중 하나(회원 `hs_member` 또는
+게스트 `hs_session`)를 그대로 재사용한다 — WS 전용 로그인 절차는 없다. 방을 찾을 수 없거나
+유효한 쿠키가 없으면 업그레이드 자체를 거부한다(HTTP 레벨 401/404).
 
-연결 직후 role이 정해진다: `nickname === table.owner_nickname`이면 **dm**, 아니면 **player**.
+연결 직후 role이 정해진다: 회원이고 `userId === table.owner_user_id`면 **dm**, 그 외(게스트
+포함, userId가 다른 회원)는 전부 **player**다. 테이블 생성(`POST /api/tables`) 자체가
+`userId` 없이는 403이므로, DM은 항상 회원 계정으로만 연결된다 — 게스트는 절대 DM이 될 수
+없다.
 
 ## 봉투
 
@@ -73,6 +108,13 @@ WS 연결 자체 + `hello`가 그 역할을 한다(아래 재접속 절차).
 - 참가자 입장/퇴장 → `table.join` / `table.leave` (actor = 해당 nickname, payload에 role 포함)
 
 ### `state.snapshot`
+
+> v1 메모: `ownerNickname`/`Token.ownerNickname`/`Participant.nickname` 필드 이름과 모양은
+> 3단계 그대로다 — 다만 내부적으로 이제 회원의 `users.display_name`(DM) 또는 게스트의
+> 표시 이름을 담는다. 와이어 프로토콜 자체는 바뀌지 않았으니 클라이언트(`table-reducer.ts`,
+> `TableCanvas`)는 손댈 필요가 없었다. 토큰 소유권(`Token.ownerNickname`)은 여전히 표시
+> 이름 문자열로 비교한다 — 계정 id로의 연결은 이번 단계 범위 밖(캐릭터 시트가 생기는
+> 다음 단계에서 `characters.owner_user_id`로 이어진다).
 
 ```ts
 interface RoomState {

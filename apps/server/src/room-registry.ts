@@ -14,6 +14,8 @@ const HEARTBEAT_MISS_LIMIT = 3;
 interface Connection {
   socket: WebSocket;
   nickname: string;
+  /** 회원 계정 id. 게스트 연결이면 null — role 판단에 쓰인다(userId만 신뢰). */
+  userId: string | null;
   role: "dm" | "player";
   missedPongs: number;
 }
@@ -43,6 +45,7 @@ export class LiveRoom {
   private participants: Map<string, Participant> = new Map();
   private connections: Set<Connection> = new Set();
   private seq: number;
+  private ownerUserId: string;
   private ownerNickname: string;
   private name: string;
   private dirty = false;
@@ -53,7 +56,8 @@ export class LiveRoom {
     this.db = db;
     this.id = row.id;
     this.name = row.name;
-    this.ownerNickname = row.owner_nickname;
+    this.ownerUserId = row.owner_user_id;
+    this.ownerNickname = row.owner_display_name;
     this.mapPath = row.map_path;
     this.grid = JSON.parse(row.grid_json);
     const persisted = JSON.parse(row.state_json) as { tokens: Token[]; log: LogEntry[] };
@@ -92,8 +96,9 @@ export class LiveRoom {
     }
   }
 
-  roleOf(nickname: string): "dm" | "player" {
-    return nickname === this.ownerNickname ? "dm" : "player";
+  /** DM 여부는 반드시 userId로만 판단한다 — 게스트(userId 없음)는 절대 DM이 될 수 없다. */
+  roleOf(userId: string | null): "dm" | "player" {
+    return userId !== null && userId === this.ownerUserId ? "dm" : "player";
   }
 
   private snapshot(role: "dm" | "player"): RoomState {
@@ -123,9 +128,9 @@ export class LiveRoom {
     if (this.log.length > LOG_CAP) this.log.splice(0, this.log.length - LOG_CAP);
   }
 
-  join(socket: WebSocket, nickname: string): void {
-    const role = this.roleOf(nickname);
-    const conn: Connection = { socket, nickname, role, missedPongs: 0 };
+  join(socket: WebSocket, nickname: string, userId: string | null): void {
+    const role = this.roleOf(userId);
+    const conn: Connection = { socket, nickname, userId, role, missedPongs: 0 };
     this.connections.add(conn);
     this.participants.set(nickname, { nickname, role, connected: true });
 

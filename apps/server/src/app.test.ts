@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from "fastify";
 import { buildApp } from "./app.js";
@@ -48,6 +49,23 @@ async function login(nickname: string): Promise<string> {
   return extractSessionCookie(res);
 }
 
+function extractMemberCookie(res: LightMyRequestResponse): string {
+  const raw = res.headers["set-cookie"];
+  const cookies = Array.isArray(raw) ? raw : [raw as string];
+  const memberCookie = cookies.find((c) => c?.startsWith("hs_member="));
+  if (!memberCookie) throw new Error("회원 세션 쿠키를 못 찾았다");
+  return memberCookie.split(";")[0]!;
+}
+
+async function register(username: string, password: string, displayName: string): Promise<string> {
+  const res = await inject({
+    method: "POST",
+    url: "/api/auth/register",
+    payload: { username, password, display_name: displayName, invite_code: INVITE_CODE },
+  });
+  return extractMemberCookie(res);
+}
+
 beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "hearthside-test-"));
   app = await buildApp({ dataDir, contentDir: CONTENT_DIR, inviteCode: INVITE_CODE, sessionSecret: "test-secret-test-secret" });
@@ -74,14 +92,130 @@ describe("세션/인증", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("GET /api/session은 로그인한 닉네임을 돌려주고, 로그인 없이는 401", async () => {
+  it("GET /api/session은 게스트 세션의 표시 이름을 돌려주고, 로그인 없이는 401", async () => {
     const anon = await inject({ method: "GET", url: "/api/session" });
     expect(anon.statusCode).toBe(401);
 
     const cookie = await login("나야");
     const res = await inject({ method: "GET", url: "/api/session", headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().nickname).toBe("나야");
+    expect(res.json()).toEqual({ kind: "guest", displayName: "나야" });
+  });
+});
+
+describe("계정 본편 (회원가입/로그인)", () => {
+  it("회원가입 → GET /api/session이 회원 정보를 돌려준다", async () => {
+    const cookie = await register("dotte", "hunter2pass", "돗트");
+    const res = await inject({ method: "GET", url: "/api/session", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.kind).toBe("member");
+    expect(body.username).toBe("dotte");
+    expect(body.displayName).toBe("돗트");
+    expect(typeof body.userId).toBe("string");
+  });
+
+  it("같은 username으로 두 번 가입하면 409", async () => {
+    await register("dupe", "hunter2pass", "첫번째");
+    const res = await inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { username: "dupe", password: "anotherpass", display_name: "두번째", invite_code: INVITE_CODE },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("회원가입도 사이트 초대코드를 요구한다", async () => {
+    const res = await inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { username: "noinvite", password: "hunter2pass", display_name: "초대없음", invite_code: "wrong" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("로그인 성공 시 회원 세션이 발급되고, 로그아웃 후 재로그인해도 같은 계정으로 인식된다", async () => {
+    await register("relog", "hunter2pass", "재로그인");
+    const res = await inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { username: "relog", password: "hunter2pass" },
+    });
+    expect(res.statusCode).toBe(200);
+    const cookie = extractMemberCookie(res);
+    const who = await inject({ method: "GET", url: "/api/session", headers: { cookie } });
+    expect(who.json().username).toBe("relog");
+  });
+
+  it("잘못된 비밀번호로 로그인하면 401", async () => {
+    await register("wrongpw", "hunter2pass", "틀린비번");
+    const res = await inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { username: "wrongpw", password: "not-the-password" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("존재하지 않는 username으로 로그인하면 401", async () => {
+    const res = await inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { username: "no-such-user", password: "whatever12" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("비밀번호는 argon2id 해시로 저장되고 평문으로 남지 않는다", async () => {
+    await register("hashcheck", "hunter2pass", "해시체크");
+    const raw = new Database(join(dataDir, "hearthside.db"), { readonly: true });
+    const row = raw.prepare(`SELECT password_hash FROM users WHERE username = ?`).get("hashcheck") as {
+      password_hash: string;
+    };
+    raw.close();
+    expect(row.password_hash).not.toContain("hunter2pass");
+    expect(row.password_hash.startsWith("$argon2id$")).toBe(true);
+  });
+
+  it("게스트 세션만으로는 테이블을 만들 수 없다(403) — 회원 계정이 있어야 DM이 된다", async () => {
+    const guestCookie = await login("게스트123");
+    const res = await inject({
+      method: "POST",
+      url: "/api/tables",
+      headers: { cookie: guestCookie },
+      payload: { name: "게스트가 만들려는 방" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("회원 계정으로는 테이블을 만들 수 있다", async () => {
+    const memberCookie = await register("tablemaker", "hunter2pass", "방주인");
+    const res = await inject({
+      method: "POST",
+      url: "/api/tables",
+      headers: { cookie: memberCookie },
+      payload: { name: "회원이 만든 방" },
+    });
+    expect(res.statusCode).toBe(201);
+  });
+
+  it("게스트 세션이어도 초대 토큰으로 테이블에는 참가할 수 있다(계정 불필요)", async () => {
+    const memberCookie = await register("hostuser", "hunter2pass", "호스트");
+    const created = await inject({
+      method: "POST",
+      url: "/api/tables",
+      headers: { cookie: memberCookie },
+      payload: { name: "게스트 참가 테스트 방" },
+    });
+    const inviteToken = created.json().invite_token as string;
+
+    const guestCookie = await login("지나가던게스트");
+    const res = await inject({
+      method: "GET",
+      url: `/api/tables/by-invite/${inviteToken}`,
+      headers: { cookie: guestCookie },
+    });
+    expect(res.statusCode).toBe(200);
   });
 });
 

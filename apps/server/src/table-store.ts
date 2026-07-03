@@ -4,7 +4,10 @@ import type { Grid, RoomState } from "./table-protocol.js";
 export interface TableRow {
   id: string;
   name: string;
-  owner_nickname: string;
+  owner_user_id: string;
+  /** users.display_name 조인 결과 — DB 컬럼이 아니라 쿼리 시점에 채워지는 값이다.
+   * 기존 API 응답 필드 이름(ownerNickname)을 유지하기 위해 여기서 이름을 붙여둔다. */
+  owner_display_name: string;
   invite_token: string;
   map_path: string | null;
   grid_json: string;
@@ -19,33 +22,39 @@ export interface PersistedRoomState {
   log: RoomState["log"];
 }
 
+const SELECT_WITH_OWNER = `
+  SELECT tables.*, users.display_name AS owner_display_name
+  FROM tables
+  JOIN users ON tables.owner_user_id = users.id
+`;
+
 export function insertTable(
   db: Database.Database,
   id: string,
   name: string,
-  ownerNickname: string,
+  ownerUserId: string,
   inviteToken: string,
 ): TableRow {
   const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO tables (id, name, owner_nickname, invite_token, created_at, updated_at)
+    `INSERT INTO tables (id, name, owner_user_id, invite_token, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(id, name, ownerNickname, inviteToken, now, now);
+  ).run(id, name, ownerUserId, inviteToken, now, now);
   return getTable(db, id)!;
 }
 
 export function getTable(db: Database.Database, id: string): TableRow | undefined {
-  return db.prepare(`SELECT * FROM tables WHERE id = ?`).get(id) as TableRow | undefined;
+  return db.prepare(`${SELECT_WITH_OWNER} WHERE tables.id = ?`).get(id) as TableRow | undefined;
 }
 
 export function getTableByInviteToken(db: Database.Database, inviteToken: string): TableRow | undefined {
-  return db.prepare(`SELECT * FROM tables WHERE invite_token = ?`).get(inviteToken) as TableRow | undefined;
+  return db.prepare(`${SELECT_WITH_OWNER} WHERE tables.invite_token = ?`).get(inviteToken) as TableRow | undefined;
 }
 
-export function listTablesByOwner(db: Database.Database, ownerNickname: string): TableRow[] {
+export function listTablesByOwner(db: Database.Database, ownerUserId: string): TableRow[] {
   return db
-    .prepare(`SELECT * FROM tables WHERE owner_nickname = ? ORDER BY updated_at DESC`)
-    .all(ownerNickname) as TableRow[];
+    .prepare(`${SELECT_WITH_OWNER} WHERE tables.owner_user_id = ? ORDER BY tables.updated_at DESC`)
+    .all(ownerUserId) as TableRow[];
 }
 
 export function setTableMapPath(db: Database.Database, id: string, mapPath: string): void {
