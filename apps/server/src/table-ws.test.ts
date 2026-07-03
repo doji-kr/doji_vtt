@@ -17,7 +17,7 @@ function freshDataDir(): string {
 }
 
 async function startApp(dir: string): Promise<{ app: FastifyInstance; base: string }> {
-  const app = buildApp({
+  const app = await buildApp({
     dataDir: dir,
     contentDir: CONTENT_DIR,
     inviteCode: INVITE_CODE,

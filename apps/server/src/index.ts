@@ -1,7 +1,7 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 
-const app = buildApp({ logger: true });
+const app = await buildApp({ logger: true });
 
 app
   .listen({ port: config.port, host: "0.0.0.0" })

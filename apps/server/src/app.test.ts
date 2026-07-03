@@ -48,9 +48,9 @@ async function login(nickname: string): Promise<string> {
   return extractSessionCookie(res);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "hearthside-test-"));
-  app = buildApp({ dataDir, contentDir: CONTENT_DIR, inviteCode: INVITE_CODE, sessionSecret: "test-secret-test-secret" });
+  app = await buildApp({ dataDir, contentDir: CONTENT_DIR, inviteCode: INVITE_CODE, sessionSecret: "test-secret-test-secret" });
   responses.length = 0;
 });
 

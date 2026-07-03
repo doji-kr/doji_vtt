@@ -8,14 +8,6 @@ export function registerTableWsRoute(app: FastifyInstance, registry: RoomRegistr
     "/ws/tables/:id",
     { websocket: true, preHandler: requireSession },
     (socket: WebSocket, request: FastifyRequest<{ Params: { id: string } }>) => {
-      console.error(
-        "DEBUG ctor=",
-        (request as any)?.constructor?.name,
-        "keys=",
-        request ? Object.keys(request) : null,
-        "socket-ctor=",
-        (socket as any)?.constructor?.name,
-      );
       const room = registry.getOrLoad(request.params.id);
       if (!room) {
         socket.close(4404, "table not found");

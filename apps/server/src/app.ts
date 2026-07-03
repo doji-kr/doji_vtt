@@ -24,7 +24,7 @@ export interface BuildAppOptions {
   logger?: boolean;
 }
 
-export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
+export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInstance> {
   const dataDir = opts.dataDir ?? config.dataDir;
   const contentDir = opts.contentDir ?? config.contentDir;
   const webDist = opts.webDist ?? config.webDist;
@@ -39,13 +39,16 @@ export function buildApp(opts: BuildAppOptions = {}): FastifyInstance {
   mkdirSync(assetsDir, { recursive: true });
   const rooms = new RoomRegistry(db);
 
-  app.register(fastifyCookie, { secret: sessionSecret });
-  app.register(fastifyMultipart);
-  app.register(fastifyWebsocket);
-  app.register(fastifyStatic, { root: contentDir, prefix: "/content/", decorateReply: true });
-  app.register(fastifyStatic, { root: assetsDir, prefix: "/assets/", decorateReply: false });
+  // 각 플러그인의 onRoute 훅(특히 @fastify/websocket)이 라우트 등록보다 먼저 붙어야 한다 —
+  // await 없이 register만 하면 .get()이 훅 부착 전에 동기 실행되어 웹소켓 라우트가
+  // 일반 HTTP 라우트로 등록되는 버그가 있었다(핸들러 인자 (socket,request)가 (request,reply)로 뒤바뀜).
+  await app.register(fastifyCookie, { secret: sessionSecret });
+  await app.register(fastifyMultipart);
+  await app.register(fastifyWebsocket);
+  await app.register(fastifyStatic, { root: contentDir, prefix: "/content/", decorateReply: true });
+  await app.register(fastifyStatic, { root: assetsDir, prefix: "/assets/", decorateReply: false });
   if (existsSync(webDist)) {
-    app.register(fastifyStatic, { root: webDist, prefix: "/", decorateReply: false });
+    await app.register(fastifyStatic, { root: webDist, prefix: "/", decorateReply: false });
   }
 
   registerSessionRoutes(app);
