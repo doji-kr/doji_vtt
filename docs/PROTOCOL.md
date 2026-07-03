@@ -97,6 +97,9 @@ interface ClientOp<T> {
 | `fog.init` | `{ cols: number; rows: number }` | DM만. 그리드 해상도에 맞춘 W×H 안개를 전부 hidden으로 새로 만든다(기존 안개는 버려진다) |
 | `fog.reveal` | `{ cells: { x: number; y: number }[] }` | DM만. 브러시 스트로크가 놓일 때(뗄 때) 좌표 목록을 한 번에 보낸다 — `fog.init` 전이면 `error fog_not_initialized` |
 | `fog.reset` | `{}` | DM만. 같은 크기로 전부 다시 hidden — `fog.init` 전이면 `error fog_not_initialized` |
+| `voice.offer` | `{ toNickname: string; data: unknown }` | 전원(역할 무관). `data`는 `RTCSessionDescriptionInit` — 서버는 내용을 해석하지 않고 그대로 릴레이한다 |
+| `voice.answer` | `{ toNickname: string; data: unknown }` | 전원(역할 무관). `data`는 `RTCSessionDescriptionInit` |
+| `voice.ice` | `{ toNickname: string; data: unknown }` | 전원(역할 무관). `data`는 `RTCIceCandidateInit` |
 
 최소 세트(`table.join token.add token.move token.remove map.set grid.set dice.roll chat.say
 ping.place`)에 `token.lock`을 추가했다 — "DM 잠금 토큰은 플레이어가 못 움직인다"는 DoD 요건을
@@ -118,6 +121,15 @@ WS 연결 자체 + `hello`가 그 역할을 한다(아래 재접속 절차).
 `{ cols, rows, runs: number[] }` 형태로 직렬화한다(§8 성능 예산 — 이미지 압축 라이브러리
 없이 순수 함수로 충분).
 
+**4단계 §4에서 추가된 3종**(`voice.offer` `voice.answer` `voice.ice`)은 WebRTC 음성 mesh의
+시그널링 릴레이다. 다른 op와 결정적으로 다른 점: **방 상태(`RoomState`)를 전혀 건드리지
+않는 순수 릴레이**라서 seq를 소비하지 않고(`hello`/`error`와 동일한 취급) 스냅샷에도 실리지
+않는다 — 재접속하면 진행 중이던 통화도 처음부터 다시 붙어야 한다(통화 자체가 세이브 대상이
+아니다). 대상이 지정한 닉네임(`toNickname`)의 소켓에만 전달되고, 그 소켓이 여러 개(다중 탭)면
+전부에게 간다. 서버는 `data`(SDP/ICE)를 zod로 `unknown`만 검증하고 내용은 절대 해석하지
+않는다 — 오디오 자체는 P2P mesh(≤6인, 3단계에 이미 못 박힌 제약)이고 서버는 시그널링
+교환만 중개한다.
+
 ## s2c 이벤트
 
 성공한 모든 op는 (권한이 있으면) 같은 이름의 이벤트로 방 전원에게 브로드캐스트된다 —
@@ -129,6 +141,9 @@ WS 연결 자체 + `hello`가 그 역할을 한다(아래 재접속 절차).
 - 권한 위반 / 유효성 실패 → `error`(요청자에게만, seq 없음): `{ type: "error", payload: {
   code: string; message: string } }`. 연결은 끊지 않는다.
 - 참가자 입장/퇴장 → `table.join` / `table.leave` (actor = 해당 nickname, payload에 role 포함)
+- `voice.offer` / `voice.answer` / `voice.ice` → 방 전원이 아니라 **`toNickname`이 지정한
+  상대에게만** 전달된다. 봉투 모양도 다르다 — seq가 없고(`error`와 동일), `actor` 대신
+  `fromNickname`을 쓴다: `{ type: "voice.offer", payload: { fromNickname: string; data: unknown } }`.
 
 ### `state.snapshot`
 
@@ -215,6 +230,24 @@ type LogEntry =
 `secret: true`인 굴림은 `log`에도 DM에게 보내는 스냅샷에만 포함된다 — 플레이어가 재접속해서
 받는 스냅샷의 `log`에는 애초에 그런 항목이 없다(서버가 role별로 log를 필터링해서 보낸다).
 
+## TURN 자격증명 (4단계 §4)
+
+`GET /api/tables/:id/turn-credentials` (로그인 필요 — 회원·게스트 둘 다 가능, 테이블 존재만
+확인하고 소유자 여부는 안 본다). 응답:
+
+```ts
+{ iceServers: RTCIceServer[]; ttl: number }
+```
+
+- `TURN_SECRET` 환경변수가 없으면 `iceServers`엔 공개 STUN(`stun:stun.l.google.com:19302`)
+  하나만 담긴다 — coturn 없이 STUN만으로 NAT 통과가 되는 가정용 네트워크 전제.
+- `TURN_SECRET`이 있으면 coturn의 `use-auth-secret`(TURN REST API) 방식으로 단기 자격증명을
+  더해서 돌려준다: `username = "<만료 유닉스초>:<nickname>"`,
+  `credential = base64(HMAC-SHA1(TURN_SECRET, username))`. DB에 사용자별 TURN 계정을 만들지
+  않는다 — `apps/server/src/turn-credentials.ts`의 순수 함수 하나가 전부다.
+- 클라이언트는 `voice.offer`로 첫 offer를 보내기 직전에 이 엔드포인트를 한 번 호출해
+  `RTCPeerConnection`의 `iceServers`로 그대로 넘긴다.
+
 ## 재접속 절차
 
 1. WS 연결 → 서버가 role 결정.
@@ -238,6 +271,7 @@ type LogEntry =
 | `character.set` (갱신) / `character.hp` / `status.set` | ✅ (모든 캐릭터) | ✅ (자기 소유 캐릭터만) |
 | `initiative.set` / `initiative.remove` | ✅ | ❌ — 시도하면 `error forbidden` |
 | `fog.init` / `fog.reveal` / `fog.reset` | ✅ | ❌ — 시도하면 `error forbidden` |
+| `voice.offer` / `voice.answer` / `voice.ice` | ✅ | ✅ — 역할 무관, 음성은 DM 전용 기능이 아니다 |
 
 위반 시 `error` 이벤트로 응답하고 **연결은 유지**한다(끊지 않음 — DoD 요건).
 

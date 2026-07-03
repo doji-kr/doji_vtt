@@ -107,6 +107,9 @@ export const api = {
   listTables: () => request<TableSummary[]>("/api/tables"),
   getTable: (id: string) => request<TableDetail>(`/api/tables/${id}`),
   resolveInvite: (token: string) => request<{ id: string; name: string }>(`/api/tables/by-invite/${token}`),
+  /** 4단계 §4: WebRTC 음성. TURN_SECRET이 서버에 없으면 STUN 항목 하나만 온다. */
+  getTurnCredentials: (tableId: string) =>
+    request<{ iceServers: RTCIceServer[]; ttl: number }>(`/api/tables/${tableId}/turn-credentials`),
   uploadMap: async (tableId: string, file: File): Promise<{ path: string }> => {
     const form = new FormData();
     form.append("file", file);

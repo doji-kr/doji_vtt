@@ -23,4 +23,9 @@ export const config = {
   webDist: process.env.WEB_DIST ?? defaultWebDist,
   inviteCode: process.env.INVITE_CODE ?? "",
   sessionSecret: process.env.SESSION_SECRET ?? warnedRandomSecret(),
+  // 4단계 §4: WebRTC 음성. TURN_SECRET이 없으면 coturn 없이도(STUN만으로) 음성이 동작하는
+  // 가정용 네트워크 전제로 TURN 자격증명 발급을 건너뛴다 — coturn은 NAT 통과 실패 시의
+  // 안전망일 뿐 필수 인프라가 아니다.
+  turnSecret: process.env.TURN_SECRET ?? "",
+  turnUrls: (process.env.TURN_URLS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
 };

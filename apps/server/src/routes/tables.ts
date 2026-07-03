@@ -4,7 +4,11 @@ import { join } from "node:path";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type Database from "better-sqlite3";
 import { z } from "zod";
+import { config } from "../config.js";
 import { getTable, getTableByInviteToken, insertTable, listTablesByOwner, setTableMapPath } from "../table-store.js";
+import { generateTurnCredential } from "../turn-credentials.js";
+
+const TURN_CREDENTIAL_TTL_SECONDS = 60 * 60; // 1시간 — 세션 하나 동안은 재발급 없이 충분
 
 const MAP_MAX_BYTES = 8 * 1024 * 1024;
 const MAP_MIME_WHITELIST: Record<string, string> = {
@@ -112,6 +116,31 @@ export function registerTableRoutes(
       const publicPath = `/uploads/${filename}`;
       setTableMapPath(db, row.id, publicPath);
       return { path: publicPath };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/tables/:id/turn-credentials",
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const row = getTable(db, request.params.id);
+      if (!row) return reply.code(404).send({ error: "not_found", message: "그런 테이블이 없다." });
+
+      const iceServers: { urls: string | string[]; username?: string; credential?: string }[] = [
+        { urls: ["stun:stun.l.google.com:19302"] },
+      ];
+      // TURN_SECRET이 없으면 coturn 없이(STUN만으로) 굴러가는 배포로 보고 TURN 항목을
+      // 건너뛴다 — 4단계 §4 설계: coturn은 안전망이지 필수 인프라가 아니다.
+      if (config.turnSecret && config.turnUrls.length > 0) {
+        const { username, credential, ttl } = generateTurnCredential(
+          config.turnSecret,
+          request.nickname ?? request.params.id,
+          TURN_CREDENTIAL_TTL_SECONDS,
+        );
+        iceServers.push({ urls: config.turnUrls, username, credential });
+        return { iceServers, ttl };
+      }
+      return { iceServers, ttl: TURN_CREDENTIAL_TTL_SECONDS };
     },
   );
 }

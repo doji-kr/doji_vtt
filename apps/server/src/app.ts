@@ -23,6 +23,9 @@ export interface BuildAppOptions {
   webDist?: string;
   sessionSecret?: string;
   inviteCode?: string;
+  /** 4단계 §4: TURN 자격증명 발급용 공유 비밀·URL — 테스트에서 config 싱글턴을 오버라이드할 때 쓴다. */
+  turnSecret?: string;
+  turnUrls?: string[];
   logger?: boolean;
 }
 
@@ -32,6 +35,8 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   const webDist = opts.webDist ?? config.webDist;
   const sessionSecret = opts.sessionSecret ?? config.sessionSecret;
   if (opts.inviteCode !== undefined) config.inviteCode = opts.inviteCode;
+  if (opts.turnSecret !== undefined) config.turnSecret = opts.turnSecret;
+  if (opts.turnUrls !== undefined) config.turnUrls = opts.turnUrls;
 
   const app = Fastify({ logger: opts.logger ?? false });
 

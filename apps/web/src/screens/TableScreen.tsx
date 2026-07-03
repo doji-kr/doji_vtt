@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ParchmentPanel, WoodButton } from "@hearthside/pixel-ui";
 import { api } from "../api.js";
 import { inviteUrl } from "../routing.js";
 import { useTableSocket } from "../useTableSocket.js";
 import { TableCanvas } from "../pixi/TableCanvas.js";
-import type { AbilityMods, Character, ChatLogEntry, LogEntry, RollLogEntry } from "../table-reducer.js";
+import { useVoice, type VoiceSignalMessage } from "../voice/useVoice.js";
+import type { AbilityMods, Character, ChatLogEntry, LogEntry, RollLogEntry, ServerMessage } from "../table-reducer.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"] as const;
 
@@ -107,8 +108,29 @@ export function TableScreen({
   selfUserId: string | null;
   onExit: () => void;
 }) {
-  const { state, connected, sendOp } = useTableSocket(tableId, selfNickname);
+  // 4단계 §4: voice.* 시그널링은 RoomState가 아니라 useVoice가 직접 소비한다 — useVoice가
+  // sendOp(useTableSocket이 돌려줌)를 필요로 해서 순서상 handleSignal을 ref로 늦게 연결한다.
+  const voiceHandleSignalRef = useRef<(msg: VoiceSignalMessage) => void>(() => {});
+  const handleSocketMessage = (msg: ServerMessage): void => {
+    if (msg.type === "voice.offer" || msg.type === "voice.answer" || msg.type === "voice.ice") {
+      const payload = msg.payload as { fromNickname: string; data: unknown };
+      voiceHandleSignalRef.current({ type: msg.type, fromNickname: payload.fromNickname, data: payload.data });
+    }
+  };
+  const { state, connected, sendOp } = useTableSocket(tableId, selfNickname, handleSocketMessage);
   const { room, lastError, selfRole, pings } = state;
+
+  const voiceParticipants = useMemo(
+    () => (room ? room.participants.filter((p) => p.nickname !== selfNickname).map((p) => p.nickname) : []),
+    [room, selfNickname],
+  );
+  const voice = useVoice({
+    selfNickname,
+    participantNicknames: voiceParticipants,
+    sendOp,
+    fetchIceServers: () => api.getTurnCredentials(tableId).then((r) => r.iceServers),
+  });
+  voiceHandleSignalRef.current = voice.handleSignal;
 
   const [chatText, setChatText] = useState("");
   const [whisperTo, setWhisperTo] = useState<string>("all");
@@ -223,6 +245,7 @@ export function TableScreen({
             fog={room.fog}
             fogBrushActive={fogBrushActive}
             onFogReveal={(cells) => sendOp("fog.reveal", { cells })}
+            speakingNicknames={voice.speaking}
           />
 
           {selfRole === "dm" && (
@@ -376,9 +399,26 @@ export function TableScreen({
                   <span className={["hs-table-dot", p.connected ? "" : "hs-table-dot--offline"].filter(Boolean).join(" ")} />
                   <span>
                     {p.nickname} {p.role === "dm" && "(DM)"}
+                    {voice.speaking.has(p.nickname) && " 🕯"}
                   </span>
                 </div>
               ))}
+            </div>
+            {/* 4단계 §4: WebRTC 음성 mesh. best-effort — 마이크 권한이 없거나 브라우저가
+                WebRTC를 지원하지 않아도 나머지 테이블 기능(안개·시트·이니셔티브)은 그대로 쓸 수
+                있다(§9 요건대로 음성 없이도 완결). */}
+            <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>
+              {!voice.enabled ? (
+                <WoodButton onClick={voice.start} disabled={voice.connecting}>
+                  {voice.connecting ? "연결하는 중..." : "🎙 음성 켜기"}
+                </WoodButton>
+              ) : (
+                <>
+                  <WoodButton onClick={voice.toggleMute}>{voice.muted ? "음소거 해제" : "음소거"}</WoodButton>
+                  <WoodButton onClick={voice.stop}>음성 끄기</WoodButton>
+                </>
+              )}
+              {voice.error && <span style={{ fontSize: "0.75rem", color: "var(--hs-ember)" }}>{voice.error}</span>}
             </div>
           </ParchmentPanel>
 

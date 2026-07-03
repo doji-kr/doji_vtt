@@ -42,6 +42,9 @@ export interface TableCanvasProps {
    * 놓을 때 한 번에 fog.reveal로 전송된다(토큰 드래그와 같은 "커밋은 뗄 때" 패턴). */
   fogBrushActive: boolean;
   onFogReveal: (cells: { x: number; y: number }[]) => void;
+  /** 4단계 §4: 지금 말하고 있다고 판단된 닉네임 집합 — 그 닉네임이 소유한 토큰에 촛불
+   * 글로우를 씌운다(§6 시그니처). DM 소유 토큰(ownerNickname null)에는 매치되지 않는다. */
+  speakingNicknames: Set<string>;
 }
 
 function toPixel(grid: Grid, gx: number, gy: number): { x: number; y: number } {
@@ -55,9 +58,14 @@ function toGrid(grid: Grid, px: number, py: number): { x: number; y: number } {
 export function TableCanvas(props: TableCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
-  const layersRef = useRef<{ map: Container; fog: Graphics; grid: Graphics; tokens: Container; pings: Container } | null>(
-    null,
-  );
+  const layersRef = useRef<{
+    map: Container;
+    fog: Graphics;
+    grid: Graphics;
+    tokens: Container;
+    glow: Graphics;
+    pings: Container;
+  } | null>(null);
   const mapSpriteRef = useRef<Sprite | null>(null);
   const redrawAllRef = useRef<(() => void) | null>(null);
   const cleanupBrushRef = useRef<(() => void) | null>(null);
@@ -91,11 +99,20 @@ export function TableCanvas(props: TableCanvasProps) {
       const fogLayer = new Graphics();
       const gridLayer = new Graphics();
       const tokensLayer = new Container();
+      const glowLayer = new Graphics();
       const pingsLayer = new Container();
       // 지도 → 안개 → 그리드 → 토큰 → 핑 순서(PROMPT-stage4.md §3) — 안개가 그리드보다
-      // 아래에 있어야 그리드 선이 항상 보여서 방향감을 유지한다.
-      app.stage.addChild(mapLayer, fogLayer, gridLayer, tokensLayer, pingsLayer);
-      layersRef.current = { map: mapLayer, fog: fogLayer, grid: gridLayer, tokens: tokensLayer, pings: pingsLayer };
+      // 아래에 있어야 그리드 선이 항상 보여서 방향감을 유지한다. 글로우(4단계 §4)는 토큰
+      // 바로 위, 핑보다는 아래에 둔다 — 핑 애니메이션을 가리지 않으면서 토큰 위에 뜬다.
+      app.stage.addChild(mapLayer, fogLayer, gridLayer, tokensLayer, glowLayer, pingsLayer);
+      layersRef.current = {
+        map: mapLayer,
+        fog: fogLayer,
+        grid: gridLayer,
+        tokens: tokensLayer,
+        glow: glowLayer,
+        pings: pingsLayer,
+      };
 
       app.canvas.addEventListener("dblclick", (ev: MouseEvent) => {
         const rect = app.canvas.getBoundingClientRect();
@@ -151,7 +168,10 @@ export function TableCanvas(props: TableCanvasProps) {
         window.removeEventListener("mouseup", onBrushMouseUp);
       };
 
-      app.ticker.add(() => redrawPings());
+      app.ticker.add(() => {
+        redrawPings();
+        redrawGlow();
+      });
 
       redrawAll();
     })();
@@ -295,6 +315,27 @@ export function TableCanvas(props: TableCanvasProps) {
         c.x = px.x;
         c.y = px.y;
         layers.tokens.addChild(c);
+      }
+    }
+
+    /** 4단계 §4: 말하는 사람의 토큰이 촛불처럼 빛난다(§6 시그니처) — 매 틱 다시 그려서
+     * 은은하게 맥동한다. 토큰 컨테이너와 propsRef.current.tokens는 같은 순서·같은 길이로
+     * 유지되므로(redrawTokens) 인덱스로 짝지어 드래그 중 실제 화면 좌표를 그대로 쓴다. */
+    function redrawGlow(): void {
+      const layers = layersRef.current;
+      if (!layers) return;
+      const g = layers.glow;
+      g.clear();
+      const speaking = propsRef.current.speakingNicknames;
+      if (speaking.size === 0) return;
+      const tokenContainers = layers.tokens.children;
+      const tokens = propsRef.current.tokens;
+      const pulse = 0.55 + 0.25 * Math.sin(Date.now() / 180);
+      for (let i = 0; i < tokens.length && i < tokenContainers.length; i++) {
+        const token = tokens[i]!;
+        if (!token.ownerNickname || !speaking.has(token.ownerNickname)) continue;
+        const c = tokenContainers[i]!;
+        g.circle(c.x, c.y, TOKEN_RADIUS + 6).stroke({ width: 3, color: CANDLE_BRIGHT, alpha: pulse });
       }
     }
 

@@ -190,6 +190,20 @@ export const clientOpSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({ type: z.literal("fog.reset"), payload: z.object({}) }),
+  // 4단계 §4: WebRTC 시그널링 릴레이 — 서버는 data(SDP/ICE)를 해석하지 않고 대상에게
+  // 그대로 전달만 한다. 역할 무관(전원 발신 가능) — 음성은 DM 전용 기능이 아니다.
+  z.object({
+    type: z.literal("voice.offer"),
+    payload: z.object({ toNickname: z.string().min(1), data: z.unknown() }),
+  }),
+  z.object({
+    type: z.literal("voice.answer"),
+    payload: z.object({ toNickname: z.string().min(1), data: z.unknown() }),
+  }),
+  z.object({
+    type: z.literal("voice.ice"),
+    payload: z.object({ toNickname: z.string().min(1), data: z.unknown() }),
+  }),
 ]);
 export type ClientOp = z.infer<typeof clientOpSchema>;
 

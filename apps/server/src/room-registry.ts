@@ -164,6 +164,16 @@ export class LiveRoom {
     }
   }
 
+  /** 4단계 §4: WebRTC 시그널링 순수 릴레이 — 방 상태를 바꾸지 않으므로 seq를 소비하지
+   * 않고(hello/error와 동일한 취급) dirty도 세우지 않는다. 대상이 여러 소켓(다중 탭)으로
+   * 접속해 있으면 전부에게 보낸다 — 어느 탭이 받을지는 클라이언트가 정할 문제가 아니다. */
+  private relay(type: string, payload: { toNickname: string; data?: unknown }, fromNickname: string): void {
+    const env = { type, payload: { fromNickname, data: payload.data } };
+    for (const conn of this.connections) {
+      if (conn.nickname === payload.toNickname) send(conn.socket, env);
+    }
+  }
+
   private appendLog(entry: LogEntry): void {
     this.log.push(entry);
     if (this.log.length > LOG_CAP) this.log.splice(0, this.log.length - LOG_CAP);
@@ -423,6 +433,12 @@ export class LiveRoom {
         if (!this.fog) return void sendError(conn.socket, "fog_not_initialized", "안개가 아직 준비되지 않았다.");
         this.fog = resetFog(this.fog);
         this.broadcast("fog.reset", this.fog, conn.nickname);
+        return;
+      }
+      case "voice.offer":
+      case "voice.answer":
+      case "voice.ice": {
+        this.relay(op.type, op.payload, conn.nickname);
         return;
       }
     }

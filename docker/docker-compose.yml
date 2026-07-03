@@ -11,8 +11,33 @@ services:
       PORT: 3000
       INVITE_CODE: ${INVITE_CODE:-}
       SESSION_SECRET: ${SESSION_SECRET}
+      # 4단계 §4: 비워두면 TURN 자격증명 발급 자체를 건너뛰고 STUN만 쓴다(가정용 라우터
+      # 대부분은 STUN으로 충분하다) — coturn은 NAT 통과 실패 시의 안전망이다.
+      TURN_SECRET: ${TURN_SECRET:-}
+      TURN_URLS: ${TURN_URLS:-}
     volumes:
       - hearthside_data:/data
+
+  # 4단계 §4: WebRTC 음성 mesh가 STUN만으로 NAT를 못 뚫을 때의 릴레이 폴백.
+  # coturn의 use-auth-secret(TURN REST API) 방식 — DB에 사용자별 TURN 계정을 안 만들고
+  # app이 TURN_SECRET으로 서명한 단기 자격증명을 그때그때 발급한다.
+  coturn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - turnserver
+      - --listening-port=3478
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-}
+      - --realm=${TURN_REALM:-hearthside.local}
+      - --min-port=49160
+      - --max-port=49200
+      - --no-cli
+      - --log-file=stdout
+    # coturn이 릴레이 UDP 포트(49160~49200)를 자유롭게 여닫아야 해서 host 네트워크를 쓴다 —
+    # bridge + 포트 매핑으로는 TURN 릴레이 후보가 컨테이너 내부 IP로 광고되어 못 쓴다.
 
 volumes:
   hearthside_data:

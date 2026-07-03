@@ -613,4 +613,86 @@ describe("실시간 테이블 WS", () => {
       dmWs2.close();
     });
   });
+
+  describe("WebRTC 시그널링 릴레이 (4단계 §4)", () => {
+    it("voice.offer/answer/ice는 지정한 상대에게만 도착하고 내용은 그대로 전달된다", async () => {
+      const dmCookie = await registerMember(base, "DM음성1");
+      const playerCookie = await login(base, "플레이어음성1");
+      const table = await createTable(base, dmCookie, "음성 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+      // 참가자 목록이 자리잡을 시간을 준다(join 이벤트 노이즈 소진).
+      await waitFor(dmWs, (m) => m.type === "table.join" && m.actor === "플레이어음성1");
+
+      const offerOnPlayerP = waitFor(playerWs, (m) => m.type === "voice.offer");
+      send(dmWs, "voice.offer", { toNickname: "플레이어음성1", data: { sdp: "v=0 fake-offer" } });
+      const offerOnPlayer = await offerOnPlayerP;
+      expect(offerOnPlayer.payload).toEqual({ fromNickname: "DM음성1", data: { sdp: "v=0 fake-offer" } });
+      expect(offerOnPlayer.seq).toBeUndefined();
+
+      const answerOnDmP = waitFor(dmWs, (m) => m.type === "voice.answer");
+      send(playerWs, "voice.answer", { toNickname: "DM음성1", data: { sdp: "v=0 fake-answer" } });
+      const answerOnDm = await answerOnDmP;
+      expect(answerOnDm.payload).toEqual({ fromNickname: "플레이어음성1", data: { sdp: "v=0 fake-answer" } });
+
+      const iceOnPlayerP = waitFor(playerWs, (m) => m.type === "voice.ice");
+      send(dmWs, "voice.ice", { toNickname: "플레이어음성1", data: { candidate: "fake-candidate" } });
+      const iceOnPlayer = await iceOnPlayerP;
+      expect(iceOnPlayer.payload).toEqual({ fromNickname: "DM음성1", data: { candidate: "fake-candidate" } });
+
+      dmWs.close();
+      playerWs.close();
+    });
+
+    it("대상이 아닌 제3자에게는 전달되지 않는다", async () => {
+      const dmCookie = await registerMember(base, "DM음성2");
+      const playerACookie = await login(base, "플레이어음성A");
+      const playerBCookie = await login(base, "플레이어음성B");
+      const table = await createTable(base, dmCookie, "음성 3자 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerAWs = connectWs(base, table.id, playerACookie);
+      await onceOpen(playerAWs);
+      const playerBWs = connectWs(base, table.id, playerBCookie);
+      await onceOpen(playerBWs);
+      await waitFor(dmWs, (m) => m.type === "table.join" && m.actor === "플레이어음성B");
+
+      send(dmWs, "voice.offer", { toNickname: "플레이어음성A", data: "for-a-only" });
+      await waitFor(playerAWs, (m) => m.type === "voice.offer");
+      await assertNeverArrives(playerBWs, (m) => m.type === "voice.offer");
+
+      dmWs.close();
+      playerAWs.close();
+      playerBWs.close();
+    });
+
+    it("시그널링은 방의 seq를 소비하지 않는다 — 이후 일반 op의 seq가 끊기지 않는다", async () => {
+      const dmCookie = await registerMember(base, "DM음성3");
+      const playerCookie = await login(base, "플레이어음성3");
+      const table = await createTable(base, dmCookie, "음성 seq 테스트 방");
+
+      const dmWs = connectWs(base, table.id, dmCookie);
+      await onceOpen(dmWs);
+      const playerWs = connectWs(base, table.id, playerCookie);
+      await onceOpen(playerWs);
+      await waitFor(dmWs, (m) => m.type === "table.join" && m.actor === "플레이어음성3");
+
+      send(dmWs, "ping.place", { x: 1, y: 1 });
+      const firstPing = await waitFor(dmWs, (m) => m.type === "ping.place");
+
+      send(dmWs, "voice.offer", { toNickname: "플레이어음성3", data: "noop" });
+      await waitFor(playerWs, (m) => m.type === "voice.offer");
+
+      send(dmWs, "ping.place", { x: 2, y: 2 });
+      const secondPing = await waitFor(dmWs, (m) => m.type === "ping.place");
+      expect(secondPing.seq).toBe(firstPing.seq + 1);
+
+      dmWs.close();
+      playerWs.close();
+    });
+  });
 });

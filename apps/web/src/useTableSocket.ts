@@ -20,10 +20,18 @@ export interface UseTableSocket {
  * 연결하고 `hello`를 보내 스냅샷을 받는다 — 재접속 시 상태 복원이 이 하나의 흐름으로 된다.
  * 연결이 끊기면 짧은 지연 후 스스로 재시도한다.
  */
-export function useTableSocket(tableId: string, selfNickname: string): UseTableSocket {
+export function useTableSocket(
+  tableId: string,
+  selfNickname: string,
+  /** 4단계 §4: voice.* 시그널링 메시지는 방 상태(RoomState)가 아니라서 applyServerMessage가
+   * 그냥 무시한다 — 대신 이 콜백으로 원본 메시지를 그대로 넘긴다(useVoice가 소비). */
+  onMessage?: (msg: ServerMessage) => void,
+): UseTableSocket {
   const [state, setState] = useState<TableClientState>(initialTableClientState);
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +56,7 @@ export function useTableSocket(tableId: string, selfNickname: string): UseTableS
         } catch {
           return; // 형식이 이상한 메시지는 조용히 무시한다 — 화면을 깨뜨리지 않는다
         }
+        onMessageRef.current?.(msg);
         setState((s) => applyServerMessage(s, msg, selfNickname));
       });
 
