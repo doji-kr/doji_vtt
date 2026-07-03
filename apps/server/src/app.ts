@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyCookie from "@fastify/cookie";
@@ -46,9 +46,33 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await app.register(fastifyMultipart);
   await app.register(fastifyWebsocket);
   await app.register(fastifyStatic, { root: contentDir, prefix: "/content/", decorateReply: true });
-  await app.register(fastifyStatic, { root: assetsDir, prefix: "/assets/", decorateReply: false });
+  // 업로드된 지도 이미지는 /uploads/ 아래 둔다 — Vite 빌드 산출물이 기본적으로 /assets/*.js|css로
+  // 나오기 때문에, 지도용 정적 서빙을 /assets/에 물리면 find-my-way 라우팅에서 웹앱 번들 자체가
+  // 가려져 브라우저에 흰 화면만 뜨는 충돌이 난다(실사용 중 발견).
+  await app.register(fastifyStatic, { root: assetsDir, prefix: "/uploads/", decorateReply: false });
+  const indexHtmlPath = join(webDist, "index.html");
   if (existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist, prefix: "/", decorateReply: false });
+  }
+  if (existsSync(indexHtmlPath)) {
+    // 3단계 추가: 수동 라우팅 SPA(apps/web)라서 /t/:token, /table/:id 같은 경로는 실제 파일이
+    // 아니다 — 정적 파일로 못 찾은 GET 요청은 index.html로 떨어뜨려 클라이언트가 pathname을
+    // 읽고 알아서 화면을 고르게 한다. /api·/content·/uploads·/ws·/assets(웹 번들)는 원래대로
+    // 404가 나야 하므로 이 경로들은 폴백에서 제외한다.
+    const indexHtml = readFileSync(indexHtmlPath, "utf-8");
+    app.setNotFoundHandler((request, reply) => {
+      const isApiLike =
+        request.method !== "GET" ||
+        request.url.startsWith("/api") ||
+        request.url.startsWith("/ws") ||
+        request.url.startsWith("/content") ||
+        request.url.startsWith("/uploads") ||
+        request.url.startsWith("/assets");
+      if (isApiLike) {
+        return reply.code(404).send({ error: "not_found", message: "그런 경로가 없다." });
+      }
+      return reply.type("text/html").send(indexHtml);
+    });
   }
 
   registerSessionRoutes(app);

@@ -25,6 +25,20 @@ export interface PlayEffectsResponse {
   ending_id?: string | null;
 }
 
+export interface TableSummary {
+  id: string;
+  name: string;
+  invite_token: string;
+  updated_at: string;
+}
+
+export interface TableDetail {
+  id: string;
+  name: string;
+  ownerNickname: string;
+  isOwner: boolean;
+}
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -67,4 +81,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ input }),
     }),
+  whoAmI: () => request<{ nickname: string }>("/api/session"),
+  createTable: (name: string) =>
+    request<{ id: string; name: string; invite_token: string }>("/api/tables", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  listTables: () => request<TableSummary[]>("/api/tables"),
+  getTable: (id: string) => request<TableDetail>(`/api/tables/${id}`),
+  resolveInvite: (token: string) => request<{ id: string; name: string }>(`/api/tables/by-invite/${token}`),
+  uploadMap: async (tableId: string, file: File): Promise<{ path: string }> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/tables/${tableId}/map`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ message: res.statusText }));
+      throw new ApiError(body.message ?? "지도 업로드가 실패했다.", res.status);
+    }
+    return res.json() as Promise<{ path: string }>;
+  },
 };

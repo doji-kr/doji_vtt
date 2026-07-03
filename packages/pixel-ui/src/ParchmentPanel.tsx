@@ -1,5 +1,17 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
-export function ParchmentPanel({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={["hs-parchment-panel", className].filter(Boolean).join(" ")}>{children}</div>;
+export function ParchmentPanel({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <div className={["hs-parchment-panel", className].filter(Boolean).join(" ")} style={style}>
+      {children}
+    </div>
+  );
 }

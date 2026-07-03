@@ -95,7 +95,7 @@ export function registerTableRoutes(app: FastifyInstance, db: Database.Database,
       const filename = `${randomUUID()}${ext}`;
       writeFileSync(join(assetsDir, filename), buffer);
 
-      const publicPath = `/assets/${filename}`;
+      const publicPath = `/uploads/${filename}`;
       setTableMapPath(db, row.id, publicPath);
       return { path: publicPath };
     },

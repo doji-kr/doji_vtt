@@ -5,8 +5,10 @@ import { api, type ModuleSummary, type PlaySummary } from "../api.js";
 
 export function LibraryScreen({
   onEnterPlay,
+  onGoToTables,
 }: {
   onEnterPlay: (playId: string, moduleId: string, effects: Effect[], ended: boolean) => void;
+  onGoToTables: () => void;
 }) {
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
   const [myPlays, setMyPlays] = useState<PlaySummary[] | null>(null);
@@ -39,6 +41,10 @@ export function LibraryScreen({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <WoodButton onClick={onGoToTables}>라이브 테이블로</WoodButton>
+      </div>
+
       {inProgress.length > 0 && (
         <section>
           <h2 style={{ fontFamily: "var(--hs-font-pixel)", color: "var(--hs-candle)" }}>이어서 하기</h2>

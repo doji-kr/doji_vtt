@@ -1,0 +1,202 @@
+// 실시간 테이블 클라이언트 상태 리듀서 — docs/PROTOCOL.md의 s2c 이벤트를 그대로 반영한다.
+// 순수 함수다: 네트워크·시간 의존성이 없어(now는 인자로 받는다) 테스트가 쉽다.
+// 서버가 이미 role별로 log를 필터링해서 보내므로(비밀 굴림 채널 분리), 여기서는 받은 걸
+// 그대로 반영할 뿐 — 클라이언트가 "숨겨야 하나?"를 판단하는 코드 경로는 절대 두지 않는다.
+
+export interface Token {
+  id: string;
+  ownerNickname: string | null;
+  label: string;
+  x: number;
+  y: number;
+  colorSeed: string;
+  locked: boolean;
+}
+
+export interface ChatLogEntry {
+  kind: "chat";
+  actor: string;
+  text: string;
+  whisperTo?: string;
+  at: string;
+}
+
+export interface RollLogEntry {
+  kind: "roll";
+  actor: string;
+  expression: string;
+  rolls: number[][];
+  total: number;
+  mode: "normal" | "adv" | "dis";
+  secret: boolean;
+  at: string;
+}
+
+export type LogEntry = ChatLogEntry | RollLogEntry;
+
+export interface Grid {
+  cellSize: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export interface Participant {
+  nickname: string;
+  role: "dm" | "player";
+  connected: boolean;
+}
+
+export interface RoomState {
+  name: string;
+  ownerNickname: string;
+  map: { path: string | null };
+  grid: Grid;
+  tokens: Token[];
+  participants: Participant[];
+  log: LogEntry[];
+}
+
+export interface Ping {
+  id: string;
+  x: number;
+  y: number;
+  actor: string;
+  at: number;
+}
+
+export interface ServerMessage {
+  type: string;
+  payload: unknown;
+  actor?: string;
+  seq?: number;
+  room_id?: string;
+}
+
+export interface TableClientState {
+  room: RoomState | null;
+  seq: number | null;
+  pings: Ping[];
+  lastError: { code: string; message: string } | null;
+  selfRole: "dm" | "player" | null;
+}
+
+export const initialTableClientState: TableClientState = {
+  room: null,
+  seq: null,
+  pings: [],
+  lastError: null,
+  selfRole: null,
+};
+
+const LOG_CAP = 100;
+const PING_CAP = 20;
+
+function capLog(log: LogEntry[]): LogEntry[] {
+  if (log.length <= LOG_CAP) return log;
+  return log.slice(log.length - LOG_CAP);
+}
+
+function upsertParticipant(list: Participant[], next: Participant): Participant[] {
+  const idx = list.findIndex((p) => p.nickname === next.nickname);
+  if (idx === -1) return [...list, next];
+  const copy = list.slice();
+  copy[idx] = next;
+  return copy;
+}
+
+/** payload를 대충 믿고 쓴다 — 서버가 zod로 이미 검증한 값이 그대로 온다(PROTOCOL.md). */
+function payloadAs<T>(msg: ServerMessage): T {
+  return msg.payload as T;
+}
+
+/**
+ * 서버 메시지 하나를 현재 상태에 반영한다. React 쪽에서는
+ * `setState(s => applyServerMessage(s, msg, selfNickname))` 형태로 쓴다.
+ */
+export function applyServerMessage(
+  state: TableClientState,
+  msg: ServerMessage,
+  selfNickname: string,
+  now: number = Date.now(),
+): TableClientState {
+  switch (msg.type) {
+    case "state.snapshot": {
+      const payload = payloadAs<RoomState & { seq: number }>(msg);
+      const { seq, ...room } = payload;
+      const selfRole: "dm" | "player" = room.ownerNickname === selfNickname ? "dm" : "player";
+      return { ...state, room, seq, selfRole, lastError: null };
+    }
+    case "error": {
+      return { ...state, lastError: payloadAs<{ code: string; message: string }>(msg) };
+    }
+    case "table.join": {
+      if (!state.room || !msg.actor) return state;
+      const { role } = payloadAs<{ role: "dm" | "player" }>(msg);
+      const participants = upsertParticipant(state.room.participants, {
+        nickname: msg.actor,
+        role,
+        connected: true,
+      });
+      return { ...state, room: { ...state.room, participants }, seq: msg.seq ?? state.seq };
+    }
+    case "table.leave": {
+      if (!state.room) return state;
+      const { nickname } = payloadAs<{ nickname: string }>(msg);
+      const participants = state.room.participants.map((p) =>
+        p.nickname === nickname ? { ...p, connected: false } : p,
+      );
+      return { ...state, room: { ...state.room, participants }, seq: msg.seq ?? state.seq };
+    }
+    case "map.set": {
+      if (!state.room) return state;
+      const { path } = payloadAs<{ path: string }>(msg);
+      return { ...state, room: { ...state.room, map: { path } }, seq: msg.seq ?? state.seq };
+    }
+    case "grid.set": {
+      if (!state.room) return state;
+      const grid = payloadAs<Grid>(msg);
+      return { ...state, room: { ...state.room, grid }, seq: msg.seq ?? state.seq };
+    }
+    case "token.add": {
+      if (!state.room) return state;
+      const token = payloadAs<Token>(msg);
+      return { ...state, room: { ...state.room, tokens: [...state.room.tokens, token] }, seq: msg.seq ?? state.seq };
+    }
+    case "token.move": {
+      if (!state.room) return state;
+      const { tokenId, x, y } = payloadAs<{ tokenId: string; x: number; y: number }>(msg);
+      const tokens = state.room.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t));
+      return { ...state, room: { ...state.room, tokens }, seq: msg.seq ?? state.seq };
+    }
+    case "token.remove": {
+      if (!state.room) return state;
+      const { tokenId } = payloadAs<{ tokenId: string }>(msg);
+      const tokens = state.room.tokens.filter((t) => t.id !== tokenId);
+      return { ...state, room: { ...state.room, tokens }, seq: msg.seq ?? state.seq };
+    }
+    case "token.lock": {
+      if (!state.room) return state;
+      const { tokenId, locked } = payloadAs<{ tokenId: string; locked: boolean }>(msg);
+      const tokens = state.room.tokens.map((t) => (t.id === tokenId ? { ...t, locked } : t));
+      return { ...state, room: { ...state.room, tokens }, seq: msg.seq ?? state.seq };
+    }
+    case "dice.roll": {
+      if (!state.room) return state;
+      const entry = payloadAs<RollLogEntry>(msg);
+      return { ...state, room: { ...state.room, log: capLog([...state.room.log, entry]) }, seq: msg.seq ?? state.seq };
+    }
+    case "chat.say": {
+      if (!state.room) return state;
+      const entry = payloadAs<ChatLogEntry>(msg);
+      return { ...state, room: { ...state.room, log: capLog([...state.room.log, entry]) }, seq: msg.seq ?? state.seq };
+    }
+    case "ping.place": {
+      const { x, y } = payloadAs<{ x: number; y: number }>(msg);
+      const ping: Ping = { id: `${now}-${Math.random().toString(36).slice(2)}`, x, y, actor: msg.actor ?? "system", at: now };
+      const pings = [...state.pings, ping].slice(-PING_CAP);
+      return { ...state, pings, seq: msg.seq ?? state.seq };
+    }
+    default:
+      return state;
+  }
+}

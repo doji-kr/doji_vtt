@@ -73,6 +73,16 @@ describe("세션/인증", () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  it("GET /api/session은 로그인한 닉네임을 돌려주고, 로그인 없이는 401", async () => {
+    const anon = await inject({ method: "GET", url: "/api/session" });
+    expect(anon.statusCode).toBe(401);
+
+    const cookie = await login("나야");
+    const res = await inject({ method: "GET", url: "/api/session", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().nickname).toBe("나야");
+  });
 });
 
 describe("서가", () => {

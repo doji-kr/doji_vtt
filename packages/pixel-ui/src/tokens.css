@@ -190,6 +190,95 @@
   50% { opacity: 0.7; transform: scaleY(0.85); }
 }
 
+/* ── 라이브 테이블 (3단계) ── */
+.hs-table-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0.75rem;
+  height: 100%;
+  min-height: 0;
+}
+.hs-table-canvas-wrap {
+  position: relative;
+  background: var(--hs-char);
+  border: 2px solid var(--hs-wood-edge);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 420px;
+}
+.hs-table-canvas-wrap canvas {
+  display: block;
+}
+.hs-table-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+}
+.hs-table-log {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.hs-table-log__entry {
+  font-size: 0.85rem;
+  line-height: 1.35;
+  padding: 0.3rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15);
+}
+.hs-table-log__entry--nat20 {
+  background: rgba(232, 161, 61, 0.28);
+  border: 1px solid var(--hs-candle);
+  color: var(--hs-candle-bright);
+  font-weight: 600;
+}
+.hs-table-log__entry--nat1 {
+  border: 1px solid var(--hs-ember);
+  opacity: 0.85;
+}
+.hs-table-log__entry--whisper {
+  font-style: italic;
+  opacity: 0.85;
+}
+.hs-table-participants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.hs-table-participant {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.hs-table-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--hs-sage);
+  flex: none;
+}
+.hs-table-dot--offline {
+  background: var(--hs-ember);
+  opacity: 0.6;
+}
+.hs-table-chat-form {
+  display: flex;
+  gap: 0.4rem;
+}
+.hs-table-chat-form input[type="text"] {
+  flex: 1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 4px;
+  border: 2px solid var(--hs-wood-edge);
+  background: var(--hs-parchment);
+  color: var(--hs-ink);
+}
+
 /* ── EndingCard ── */
 .hs-ending-card {
   text-align: center;

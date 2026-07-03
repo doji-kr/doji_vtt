@@ -148,7 +148,7 @@ describe("실시간 테이블 WS", () => {
     await onceOpen(playerWs);
 
     // 플레이어가 지도를 바꾸려 한다 — DM 전용 op
-    send(playerWs, "map.set", { path: "/assets/whatever.png" });
+    send(playerWs, "map.set", { path: "/uploads/whatever.png" });
     const err = await waitFor(playerWs, (m) => m.type === "error");
     expect(err.payload.code).toBe("forbidden");
 
